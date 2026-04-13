@@ -1,0 +1,21 @@
+target/
+.idea/
+*.iml
+.classpath
+.project
+.settings/
+.vscode/
+.env
+docs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs and runtime output
+*.log
+
+# Temporary files
+*.tmp
+*.swp
+*.swo
