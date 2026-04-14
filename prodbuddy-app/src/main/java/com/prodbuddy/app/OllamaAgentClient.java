@@ -16,8 +16,12 @@ public final class OllamaAgentClient {
     }
 
     public String generate(String prompt, AgentConfig config) {
+        String effectivePrompt = withFunctionCallingInstructions(prompt, config);
+        boolean thinking = config.thinkingEnabled()
+                || (config.functionCallingEnabled() && config.functionCallingWithThinking());
         String body = "{\"model\":\"" + escapeJson(config.model()) + "\",\"prompt\":\""
-                + escapeJson(prompt) + "\",\"stream\":false}";
+                + escapeJson(effectivePrompt) + "\",\"stream\":" + config.streamEnabled()
+                + ",\"think\":" + thinking + "}";
         HttpRequest.Builder builder = HttpRequest.newBuilder()
                 .uri(URI.create(config.baseUrl() + config.chatPath()))
                 .timeout(Duration.ofSeconds(30))
@@ -38,6 +42,10 @@ public final class OllamaAgentClient {
     }
 
     private static String normalizeResponseBody(String body) {
+        String streamed = parseStreamedResponse(body);
+        if (!streamed.isBlank()) {
+            return streamed;
+        }
         String candidate = extractJsonString(body, "\"response\":\"");
         if (!candidate.isBlank()) {
             return candidate;
@@ -47,6 +55,30 @@ public final class OllamaAgentClient {
             return content;
         }
         return body;
+    }
+
+    private static String parseStreamedResponse(String body) {
+        if (body == null || body.isBlank() || !body.contains("\n")) {
+            return "";
+        }
+        StringBuilder chunks = new StringBuilder();
+        for (String line : body.split("\\n")) {
+            String part = extractJsonString(line, "\"response\":\"");
+            if (!part.isBlank()) {
+                chunks.append(part);
+            }
+        }
+        return chunks.toString().trim();
+    }
+
+    private static String withFunctionCallingInstructions(String prompt, AgentConfig config) {
+        if (!config.functionCallingEnabled()) {
+            return prompt;
+        }
+        return "When a tool call is needed, return only compact JSON with fields tool_name, operation, and payload. "
+                + "Otherwise answer normally."
+                + (config.functionCallingWithThinking() ? " You may reason internally before emitting the tool-call JSON." : "")
+                + "\nUser request:\n" + prompt;
     }
 
     private static String extractJsonString(String body, String marker) {

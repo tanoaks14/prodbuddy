@@ -55,6 +55,9 @@ public final class DebugIssueAgentLoop {
     private List<DebugStep> plan(String issueQuery, ToolContext context) {
         String projectPath = context.envOrDefault("PRODBUDDY_PROJECT_PATH", System.getProperty("user.dir"));
         String dbPath = context.envOrDefault("CODE_CONTEXT_DB_PATH", ".prodbuddy/codegraph");
+        String splunkIndex = context.envOrDefault("SPLUNK_DEFAULT_INDEX", "").trim();
+        String splunkAuthMode = context.envOrDefault("SPLUNK_AUTH_MODE", "token").trim().toLowerCase();
+        String splunkSessionKey = context.envOrDefault("SPLUNK_SESSION_KEY", "").trim();
         int windowMinutes = Integer.parseInt(context.envOrDefault("DEBUG_WINDOW_MINUTES", "15"));
         int limit = Integer.parseInt(context.envOrDefault("DEBUG_RESULT_LIMIT", "100"));
 
@@ -71,7 +74,7 @@ public final class DebugIssueAgentLoop {
                 ),
                 codeContextStep(projectPath, dbPath, issueQuery),
                 newRelicStep(windowMinutes, limit),
-                splunkStep(issueQuery, limit),
+                splunkStep(issueQuery, limit, splunkIndex, splunkAuthMode, splunkSessionKey),
                 elasticsearchStep(issueQuery, limit),
                 kubectlPreviewStep()
         );
@@ -93,11 +96,29 @@ public final class DebugIssueAgentLoop {
         ));
     }
 
-    private DebugStep splunkStep(String issueQuery, int limit) {
+    private DebugStep splunkStep(
+            String issueQuery,
+            int limit,
+            String splunkIndex,
+            String splunkAuthMode,
+            String splunkSessionKey
+    ) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("terms", issueQuery);
+        payload.put("count", limit);
+        if (!splunkIndex.isBlank()) {
+            payload.put("index", splunkIndex);
+        }
+        if (!splunkAuthMode.isBlank()) {
+            payload.put("authMode", splunkAuthMode);
+        }
+        if (("sso".equals(splunkAuthMode) || "session".equals(splunkAuthMode)) && !splunkSessionKey.isBlank()) {
+            payload.put("sessionKey", splunkSessionKey);
+        }
         return new DebugStep("splunk_search", "Search Splunk logs for matching symptoms", new ToolRequest(
                 "splunk",
                 "oneshot",
-                Map.of("search", "search \"" + issueQuery + "\" | head " + limit)
+                payload
         ));
     }
 

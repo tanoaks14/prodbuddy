@@ -24,6 +24,8 @@ public final class SplunkTool implements Tool {
     private static final String NAME = "splunk";
     private static final String MODE_TOKEN = "token";
     private static final String MODE_USER = "user";
+    private static final String MODE_SSO = "sso";
+    private static final String MODE_SESSION = "session";
     private static final Pattern SESSION_KEY_JSON = Pattern.compile("\"sessionKey\"\\s*:\\s*\"([^\"]+)\"");
     private static final Pattern SESSION_KEY_XML = Pattern.compile("<sessionKey>([^<]+)</sessionKey>");
 
@@ -64,31 +66,55 @@ public final class SplunkTool implements Tool {
         }
 
         boolean authEnabled = resolveAuthEnabled(request, context);
+        String authMode = resolveAuthMode(request, context);
         String authHeader = resolveAuthHeader(request, context, baseUrl, authEnabled);
         if (authEnabled && authHeader == null) {
             return ToolResponse.failure("SPLUNK_CONFIG", credentialsMessage(request, context));
         }
 
         String search = queryBuilder.resolveSearch(request, context);
-        HttpRequest httpRequest = buildRequest(operation, baseUrl, request.payload(), search, authHeader);
-        return send(httpRequest, operation, search);
+        String path = queryBuilder.resolvePath(operation, request.payload());
+        String body = queryBuilder.buildBody(operation, request.payload(), search);
+        HttpRequest httpRequest = buildRequest(baseUrl, path, body, authHeader);
+        return send(httpRequest, operation, search, path, authMode);
     }
 
-    private ToolResponse send(HttpRequest request, String operation, String search) {
+    private ToolResponse send(HttpRequest request, String operation, String search, String path, String authMode) {
+        String attempted = "operation=" + operation + ", path=" + path + ", authMode=" + authMode + ", search=" + search;
         try {
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() >= 400) {
+                return splunkHttpFailure(response, attempted);
+            }
             return ToolResponse.ok(Map.of(
                     "status", response.statusCode(),
                     "body", response.body(),
                     "operation", operation,
-                    "search", search
+                    "search", search,
+                    "path", path,
+                    "authMode", authMode
             ));
         } catch (IOException ex) {
-            return ToolResponse.failure("SPLUNK_QUERY_FAILED", messageFrom(ex));
+            return splunkExceptionFailure(ex, attempted);
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
-            return ToolResponse.failure("SPLUNK_QUERY_FAILED", messageFrom(ex));
+            return splunkExceptionFailure(ex, attempted);
         }
+    }
+
+    private ToolResponse splunkHttpFailure(HttpResponse<String> response, String attempted) {
+        return ToolResponse.failure(
+                "SPLUNK_QUERY_FAILED",
+                "Splunk returned HTTP " + response.statusCode() + ". attempted: " + attempted
+                + ". responseBody=" + truncateBody(response.body())
+        );
+    }
+
+    private ToolResponse splunkExceptionFailure(Exception exception, String attempted) {
+        return ToolResponse.failure(
+                "SPLUNK_QUERY_FAILED",
+                messageFrom(exception) + ". attempted: " + attempted
+        );
     }
 
     private String messageFrom(Exception ex) {
@@ -103,6 +129,9 @@ public final class SplunkTool implements Tool {
         String mode = resolveAuthMode(request, context);
         if (MODE_USER.equals(mode)) {
             return "SPLUNK_USERNAME and SPLUNK_PASSWORD are required for authMode=user";
+        }
+        if (MODE_SSO.equals(mode) || MODE_SESSION.equals(mode)) {
+            return "SPLUNK_SESSION_KEY is required for authMode=sso. Use your SSO login in Splunk, then provide a session key.";
         }
         return "SPLUNK_TOKEN is required for authMode=token";
     }
@@ -120,6 +149,13 @@ public final class SplunkTool implements Tool {
         String mode = resolveAuthMode(request, context);
         if (MODE_USER.equals(mode)) {
             return loginAndBuildAuthHeader(request, context, baseUrl);
+        }
+        if (MODE_SSO.equals(mode) || MODE_SESSION.equals(mode)) {
+            String sessionKey = resolveSessionKey(request, context);
+            if (sessionKey == null || sessionKey.isBlank()) {
+                return null;
+            }
+            return "Splunk " + sessionKey;
         }
 
         String token = resolveToken(request, context);
@@ -141,6 +177,14 @@ public final class SplunkTool implements Tool {
             return String.valueOf(payloadToken);
         }
         return context.env("SPLUNK_TOKEN");
+    }
+
+    private String resolveSessionKey(ToolRequest request, ToolContext context) {
+        Object payloadSession = request.payload().get("sessionKey");
+        if (payloadSession != null && !String.valueOf(payloadSession).isBlank()) {
+            return String.valueOf(payloadSession);
+        }
+        return context.env("SPLUNK_SESSION_KEY");
     }
 
     private String loginAndBuildAuthHeader(ToolRequest request, ToolContext context, String baseUrl) {
@@ -213,15 +257,7 @@ public final class SplunkTool implements Tool {
         );
     }
 
-    private HttpRequest buildRequest(
-            String operation,
-            String baseUrl,
-            Map<String, Object> payload,
-            String search,
-            String authHeader
-    ) {
-        String path = queryBuilder.resolvePath(operation, payload);
-        String body = queryBuilder.buildBody(operation, payload, search);
+    private HttpRequest buildRequest(String baseUrl, String path, String body, String authHeader) {
         HttpRequest.Builder builder = HttpRequest.newBuilder()
                 .uri(URI.create(baseUrl + path))
                 .timeout(Duration.ofSeconds(20))
@@ -233,5 +269,12 @@ public final class SplunkTool implements Tool {
         }
 
         return builder.build();
+    }
+
+    private String truncateBody(String body) {
+        if (body == null || body.length() <= 600) {
+            return body;
+        }
+        return body.substring(0, 600);
     }
 }

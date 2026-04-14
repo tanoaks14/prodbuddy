@@ -77,6 +77,11 @@ mvn -q -f prodbuddy-app/pom.xml exec:java -Dexec.args="--debug-issue payment tim
 - kubectl pod-state preview
 - suggested next actions when a step fails
 
+Debug step output now includes:
+- the function call used (for example `splunk.oneshot`)
+- the key input values used for that step (for example `index`, `terms`)
+- clear failure reason with attempted operation/path/auth mode for faster troubleshooting
+
 When required telemetry settings are missing, the CLI prompts for values at runtime (you can press Enter to skip).
 For code-based investigations, debug mode now also confirms:
 - project path used for `codecontext` (`PRODBUDDY_PROJECT_PATH`)
@@ -108,9 +113,11 @@ Copy it, keep only the steps you need, and set variables through `--vars` or `.e
 - `NEWRELIC_ACCOUNT_ID`
 - `NEWRELIC_USER_API_KEY`
 - `SPLUNK_BASE_URL`
-- `SPLUNK_AUTH_MODE` (`token` or `user`)
+- `SPLUNK_AUTH_MODE` (`token`, `user`, or `sso`)
 - `SPLUNK_TOKEN` (required for `SPLUNK_AUTH_MODE=token`)
 - `SPLUNK_USERNAME` and `SPLUNK_PASSWORD` (required for `SPLUNK_AUTH_MODE=user`)
+- `SPLUNK_SESSION_KEY` (required for `SPLUNK_AUTH_MODE=sso`)
+- `SPLUNK_DEFAULT_INDEX` (used by debug-loop Splunk searches when no index is provided)
 
 Agent configuration is env-driven and supports Ollama for the first iteration.
 - `AGENT_ENABLED`
@@ -120,8 +127,14 @@ Agent configuration is env-driven and supports Ollama for the first iteration.
 - `AGENT_CHAT_PATH`
 - `AGENT_AUTH_ENABLED`
 - `AGENT_API_KEY`
+- `AGENT_STREAM_ENABLED` (enables streaming response mode from local model API)
+- `AGENT_THINKING_ENABLED` (passes thinking flag to local model when supported)
+- `AGENT_FUNCTION_CALLING_ENABLED` (prompt-level function-call output mode)
+- `AGENT_FUNCTION_CALLING_WITH_THINKING` (allows function-call mode while thinking is enabled)
 - `PRODBUDDY_PROJECT_PATH` (used by debug codecontext calls)
 - `PRODBUDDY_CODE_HINT` (optional module/path/class hint for code-based requests)
+
+Function-calling note: current local integration uses `/api/generate`, so function calling is prompt-driven JSON output, not native provider tool-calling protocol.
 
 Additional env-backed properties are available in `.env.example`, including auth flags, defaults, generic HTTP settings, and kubectl settings.
 
@@ -178,6 +191,7 @@ Examples:
 Authentication modes:
 - `SPLUNK_AUTH_MODE=token`: uses `SPLUNK_TOKEN`
 - `SPLUNK_AUTH_MODE=user`: logs in with `SPLUNK_USERNAME` and `SPLUNK_PASSWORD` and uses a Splunk session key
+- `SPLUNK_AUTH_MODE=sso`: uses a pre-issued `SPLUNK_SESSION_KEY` (for SSO-only environments)
 
 Richer query input is supported through payload fields such as:
 - `search` / `query` / `queryString`

@@ -164,35 +164,20 @@ public final class ProdBuddyApplication {
         promptIfMissing(environment, "NEWRELIC_ACCOUNT_ID", false);
         promptIfMissing(environment, "NEWRELIC_USER_API_KEY", true);
         promptIfMissing(environment, "SPLUNK_BASE_URL", false);
-        promptIfMissing(environment, "SPLUNK_AUTH_MODE", false);
-        String splunkAuthMode = environment.getOrDefault("SPLUNK_AUTH_MODE", "token").trim().toLowerCase();
-        if ("user".equals(splunkAuthMode)) {
-            promptIfMissing(environment, "SPLUNK_USERNAME", false);
-            promptIfMissing(environment, "SPLUNK_PASSWORD", true);
-        } else {
-            promptIfMissing(environment, "SPLUNK_TOKEN", true);
-        }
+        SplunkDebugConfigPrompter.prompt(environment);
         promptIfMissing(environment, "ELASTICSEARCH_BASE_URL", false);
     }
 
     private static void promptForMissingCodeContextConfig(Map<String, String> environment) {
         String cwd = System.getProperty("user.dir");
-        String selectedProject = promptWithDefault(
-                "Project path for code-based analysis",
-                environment.getOrDefault("PRODBUDDY_PROJECT_PATH", cwd)
-        );
+        String selectedProject = promptWithDefault("Project path for code-based analysis",
+                environment.getOrDefault("PRODBUDDY_PROJECT_PATH", cwd));
         environment.put("PRODBUDDY_PROJECT_PATH", selectedProject);
-
-        String selectedDbPath = promptWithDefault(
-                "Code-context DB path",
-                environment.getOrDefault("CODE_CONTEXT_DB_PATH", ".prodbuddy/codegraph")
-        );
+        String selectedDbPath = promptWithDefault("Code-context DB path",
+                environment.getOrDefault("CODE_CONTEXT_DB_PATH", ".prodbuddy/codegraph"));
         environment.put("CODE_CONTEXT_DB_PATH", selectedDbPath);
-
-        String codeHint = promptWithDefault(
-                "Optional source location hint (module/path/class) for better tool targeting",
-                environment.getOrDefault("PRODBUDDY_CODE_HINT", "")
-        );
+        String codeHint = promptWithDefault("Optional source location hint (module/path/class) for better tool targeting",
+                environment.getOrDefault("PRODBUDDY_CODE_HINT", ""));
         if (!codeHint.isBlank()) {
             environment.put("PRODBUDDY_CODE_HINT", codeHint);
         }
@@ -229,6 +214,8 @@ public final class ProdBuddyApplication {
         System.out.println("Issue: " + issue);
         System.out.println("Project path: " + environment.getOrDefault("PRODBUDDY_PROJECT_PATH", ""));
         System.out.println("Code DB path: " + environment.getOrDefault("CODE_CONTEXT_DB_PATH", ""));
+        System.out.println("Splunk auth mode: " + environment.getOrDefault("SPLUNK_AUTH_MODE", "token"));
+        System.out.println("Splunk index: " + environment.getOrDefault("SPLUNK_DEFAULT_INDEX", ""));
         String codeHint = environment.getOrDefault("PRODBUDDY_CODE_HINT", "");
         if (!codeHint.isBlank()) {
             System.out.println("Code hint: " + codeHint);
