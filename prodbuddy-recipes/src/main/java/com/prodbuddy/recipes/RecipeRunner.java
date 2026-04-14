@@ -10,10 +10,11 @@ import com.prodbuddy.core.tool.ToolRequest;
 import com.prodbuddy.core.tool.ToolResponse;
 
 /**
- * Executes a recipe step-by-step, resolving variables before each step
- * and collecting results for downstream cross-step data references.
+ * Executes a recipe step-by-step, resolving variables before each step and
+ * collecting results for downstream cross-step data references.
  *
- * <p>Continues on per-step failure — all steps are attempted regardless.
+ * <p>
+ * Continues on per-step failure — all steps are attempted regardless.
  */
 public final class RecipeRunner {
 
@@ -43,7 +44,7 @@ public final class RecipeRunner {
         String operation = resolver.resolve(step.operation(), context, stepData);
         ToolRequest request = buildRequest(tool, operation, resolved);
         ToolResponse response = safeExecute(executor, request, context);
-        return new RecipeStepResult(step.name(), resolved, response);
+        return new RecipeStepResult(step.name(), tool, operation, resolved, response);
     }
 
     private ToolRequest buildRequest(String tool, String operation, Map<String, String> params) {

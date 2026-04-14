@@ -17,7 +17,10 @@ public final class RecipeReport {
         List<Map<String, Object>> failed = new ArrayList<>();
         for (RecipeStepResult step : result.stepResults()) {
             if (step.response().success()) {
-                passed.add(Map.of("step", step.stepName()));
+                passed.add(Map.of(
+                        "step", step.stepName(),
+                        "call", step.tool() + "." + step.operation()
+                ));
             } else {
                 failed.add(failureSummary(step));
             }
@@ -47,6 +50,7 @@ public final class RecipeReport {
         }
         Map<String, Object> summary = new LinkedHashMap<>();
         summary.put("step", step.stepName());
+        summary.put("call", step.tool() + "." + step.operation());
         summary.put("errors", errors);
         return summary;
     }

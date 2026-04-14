@@ -13,9 +13,15 @@ import com.prodbuddy.core.tool.ToolResponse;
 public final class DebugIssueAgentLoop {
 
     private final DebugToolExecutor executor;
+    private final DebugProgressListener progressListener;
 
     public DebugIssueAgentLoop(DebugToolExecutor executor) {
+        this(executor, DebugProgressListener.noop());
+    }
+
+    public DebugIssueAgentLoop(DebugToolExecutor executor, DebugProgressListener progressListener) {
         this.executor = executor;
+        this.progressListener = progressListener == null ? DebugProgressListener.noop() : progressListener;
     }
 
     public ToolResponse run(String issueQuery, ToolContext context) {
@@ -24,12 +30,15 @@ public final class DebugIssueAgentLoop {
         List<Map<String, Object>> stepFailures = new ArrayList<>();
 
         for (DebugStep step : plan) {
+            progressListener.onStepStart(step.name(), step.request(), step.description());
             ToolResponse response = safeExecute(step.request(), context);
             if (response.success()) {
                 stepResults.put(step.name(), response.data());
+                progressListener.onStepFinish(step.name(), step.request(), true, summarizeStepData(response.data()));
                 continue;
             }
             stepFailures.add(failure(step.name(), response.errors()));
+            progressListener.onStepFinish(step.name(), step.request(), false, summarizeErrors(response.errors()));
         }
 
         Map<String, Object> report = new LinkedHashMap<>();
@@ -50,8 +59,16 @@ public final class DebugIssueAgentLoop {
         int limit = Integer.parseInt(context.envOrDefault("DEBUG_RESULT_LIMIT", "100"));
 
         return List.of(
-                new DebugStep("system_tools", new ToolRequest("system", "list_tools", Map.of())),
-                new DebugStep("system_agent_config", new ToolRequest("system", "agent_config", Map.of())),
+                new DebugStep(
+                        "system_tools",
+                        "List registered tools available for this run",
+                        new ToolRequest("system", "list_tools", Map.of())
+                ),
+                new DebugStep(
+                        "system_agent_config",
+                        "Show active agent runtime configuration",
+                        new ToolRequest("system", "agent_config", Map.of())
+                ),
                 codeContextStep(projectPath, dbPath, issueQuery),
                 newRelicStep(windowMinutes, limit),
                 splunkStep(issueQuery, limit),
@@ -61,7 +78,7 @@ public final class DebugIssueAgentLoop {
     }
 
     private DebugStep codeContextStep(String projectPath, String dbPath, String issueQuery) {
-        return new DebugStep("code_p1_context", new ToolRequest(
+        return new DebugStep("code_p1_context", "Collect code hotspots related to the issue", new ToolRequest(
                 "codecontext",
                 "p1_context",
                 Map.of("projectPath", projectPath, "dbPath", dbPath, "symptom", issueQuery)
@@ -69,7 +86,7 @@ public final class DebugIssueAgentLoop {
     }
 
     private DebugStep newRelicStep(int windowMinutes, int limit) {
-        return new DebugStep("newrelic_errors", new ToolRequest(
+        return new DebugStep("newrelic_errors", "Query New Relic error metrics", new ToolRequest(
                 "newrelic",
                 "query_metrics",
                 Map.of("metric", "errors", "timeWindowMinutes", windowMinutes, "limit", limit)
@@ -77,7 +94,7 @@ public final class DebugIssueAgentLoop {
     }
 
     private DebugStep splunkStep(String issueQuery, int limit) {
-        return new DebugStep("splunk_search", new ToolRequest(
+        return new DebugStep("splunk_search", "Search Splunk logs for matching symptoms", new ToolRequest(
                 "splunk",
                 "oneshot",
                 Map.of("search", "search \"" + issueQuery + "\" | head " + limit)
@@ -85,7 +102,7 @@ public final class DebugIssueAgentLoop {
     }
 
     private DebugStep elasticsearchStep(String issueQuery, int limit) {
-        return new DebugStep("elasticsearch_search", new ToolRequest(
+        return new DebugStep("elasticsearch_search", "Search Elasticsearch logs", new ToolRequest(
                 "elasticsearch",
                 "query",
                 Map.of("index", "logs-*", "queryString", issueQuery, "size", limit)
@@ -93,7 +110,7 @@ public final class DebugIssueAgentLoop {
     }
 
     private DebugStep kubectlPreviewStep() {
-        return new DebugStep("kubectl_pods_preview", new ToolRequest(
+        return new DebugStep("kubectl_pods_preview", "Preview Kubernetes pod status across namespaces", new ToolRequest(
                 "kubectl",
                 "get",
                 Map.of("resource", "pods", "args", List.of("-A"), "execute", false)
@@ -130,8 +147,58 @@ public final class DebugIssueAgentLoop {
         return actions;
     }
 
-    private record DebugStep(String name, ToolRequest request) {
+    private String summarizeErrors(List<ToolError> errors) {
+        if (errors == null || errors.isEmpty()) {
+            return "No error details available.";
+        }
+        ToolError first = errors.get(0);
+        return first.code() + ": " + first.message();
+    }
 
+    private String summarizeStepData(Map<String, Object> data) {
+        if (data == null || data.isEmpty()) {
+            return "Completed with no payload.";
+        }
+        Object status = data.get("status");
+        if (status != null) {
+            return "status=" + status;
+        }
+        Object summary = data.get("summary");
+        if (summary != null) {
+            return String.valueOf(summary);
+        }
+        Object results = data.get("results");
+        if (results instanceof List<?> list) {
+            return "results=" + list.size();
+        }
+        Object matches = data.get("matches");
+        if (matches instanceof List<?> list) {
+            return "matches=" + list.size();
+        }
+        Object tools = data.get("tools");
+        if (tools instanceof List<?> list) {
+            return "tools=" + list.size();
+        }
+        return "fields=" + data.keySet();
+    }
+
+    private record DebugStep(String name, String description, ToolRequest request) {
+
+    }
+
+    @FunctionalInterface
+    public interface DebugProgressListener {
+
+        void onStepStart(String stepName, ToolRequest request, String description);
+
+        default void onStepFinish(String stepName, ToolRequest request, boolean success, String summary) {
+            // optional
+        }
+
+        static DebugProgressListener noop() {
+            return (stepName, request, description) -> {
+            };
+        }
     }
 
     @FunctionalInterface

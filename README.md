@@ -78,7 +78,28 @@ mvn -q -f prodbuddy-app/pom.xml exec:java -Dexec.args="--debug-issue payment tim
 - suggested next actions when a step fails
 
 When required telemetry settings are missing, the CLI prompts for values at runtime (you can press Enter to skip).
-Debug mode prints a compact summary by default and does not dump full context payloads.
+For code-based investigations, debug mode now also confirms:
+- project path used for `codecontext` (`PRODBUDDY_PROJECT_PATH`)
+- graph DB path (`CODE_CONTEXT_DB_PATH`)
+- optional code location hint (`PRODBUDDY_CODE_HINT`) to improve subsequent assistant/tool targeting
+Debug mode prints explicit input context, then a compact summary by default.
+
+## Recipes
+
+List available recipes:
+
+```powershell
+mvn -q -f prodbuddy-app/pom.xml exec:java -Dexec.args="--list-recipes"
+```
+
+Run a recipe:
+
+```powershell
+mvn -q -f prodbuddy-app/pom.xml exec:java -Dexec.args="--run-recipe payment-timeout-debug --vars SYMPTOM=\"payment timeout 5xx\""
+```
+
+Template for broad scenario coverage is available at `recipes/recipe-template-all-scenarios.md`.
+Copy it, keep only the steps you need, and set variables through `--vars` or `.env`.
 
 ## Environment Variables
 
@@ -99,6 +120,8 @@ Agent configuration is env-driven and supports Ollama for the first iteration.
 - `AGENT_CHAT_PATH`
 - `AGENT_AUTH_ENABLED`
 - `AGENT_API_KEY`
+- `PRODBUDDY_PROJECT_PATH` (used by debug codecontext calls)
+- `PRODBUDDY_CODE_HINT` (optional module/path/class hint for code-based requests)
 
 Additional env-backed properties are available in `.env.example`, including auth flags, defaults, generic HTTP settings, and kubectl settings.
 
