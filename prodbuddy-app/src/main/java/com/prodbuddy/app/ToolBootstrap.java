@@ -42,8 +42,10 @@ public final class ToolBootstrap {
                 new JavaGraphExtractor(),
                 new LocalGraphDbService()
         );
+        Tool jsonTool = new com.prodbuddy.tools.json.JsonTool(new com.prodbuddy.tools.json.JsonAnalyzer());
+        Tool gitTool = new com.prodbuddy.tools.git.GitTool();
 
-        List<Tool> baseTools = new ArrayList<>(List.of(pdf, elasticsearch, newRelic, splunk, http, kubectl, codeContext));
+        List<Tool> baseTools = new ArrayList<>(List.of(pdf, elasticsearch, newRelic, splunk, http, kubectl, codeContext, jsonTool, gitTool));
         AtomicReference<ToolRegistry> registryRef = new AtomicReference<>(new ToolRegistry(baseTools));
         Tool system = new SystemCatalogTool(registryRef::get, router);
         baseTools.add(system);

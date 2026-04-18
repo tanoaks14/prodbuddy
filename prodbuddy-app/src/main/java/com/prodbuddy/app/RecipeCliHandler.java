@@ -7,6 +7,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import com.prodbuddy.context.ContextCollector;
+import com.prodbuddy.context.ContextFormatter;
+import com.prodbuddy.context.ConversationContext;
 import com.prodbuddy.core.tool.ToolContext;
 import com.prodbuddy.core.tool.ToolError;
 import com.prodbuddy.orchestrator.AgentLoopOrchestrator;
@@ -16,12 +19,16 @@ import com.prodbuddy.recipes.RecipeReport;
 import com.prodbuddy.recipes.RecipeRunResult;
 import com.prodbuddy.recipes.RecipeRunner;
 import com.prodbuddy.recipes.RecipeStepResult;
+import com.prodbuddy.observation.SequenceLogger;
+import com.prodbuddy.observation.Slf4jSequenceLogger;
 
 /**
  * Handles --run-recipe, --list-recipes, and --add-recipe CLI modes. Dispatches
  * to the appropriate handler based on args[0].
  */
 final class RecipeCliHandler {
+
+    private static final SequenceLogger seqLog = new Slf4jSequenceLogger(RecipeCliHandler.class);
 
     private RecipeCliHandler() {
     }
@@ -79,11 +86,13 @@ final class RecipeCliHandler {
             return;
         }
         ToolContext context = new ToolContext(UUID.randomUUID().toString(), env);
-        RecipeRunResult result = new RecipeRunner().run(recipe, context, orchestrator::run);
+        ConversationContext convCtx = new ConversationContext(context.requestId());
+        ContextCollector collector = new ContextCollector(orchestrator::run, convCtx);
+        RecipeRunResult result = new RecipeRunner().run(recipe, context, collector);
         printRecipeSteps(result);
         Map<String, Object> summary = RecipeReport.summarize(result);
         printRecipeSummary(summary);
-        runRecipeLlm(name, summary, agentConfig);
+        runRecipeLlm(name, summary, convCtx, agentConfig);
     }
 
     private static Map<String, String> applyVars(String[] args, Map<String, String> environment) {
@@ -104,15 +113,29 @@ final class RecipeCliHandler {
         return result;
     }
 
-    private static void runRecipeLlm(String name, Map<String, Object> summary, AgentConfig config) {
+    private static void runRecipeLlm(
+            String name, Map<String, Object> summary,
+            ConversationContext convCtx, AgentConfig config
+    ) {
         if (!config.enabled() || !"ollama".equalsIgnoreCase(config.provider())) {
+            seqLog.logSequence("RecipeCliHandler", "LLM", "runRecipeLlm", "Skipping LLM (Disabled)");
             return;
         }
+        seqLog.logSequence("RecipeCliHandler", "LLM", "runRecipeLlm", "Requesting Recipe Analysis");
         String summaryText = String.valueOf(summary).replace('"', '\'');
-        String prompt = "Recipe: " + name + "\\nResult: " + summaryText
-                + "\\nIdentify failures, likely root causes, and recommended next steps.";
+        String contextText = ContextFormatter.format(convCtx);
+        String prompt = "You are a diagnostic AI assistant. Analyze the following recipe execution.\n"
+                + "Recipe: " + name + "\n"
+                + "Execution Summary: " + summaryText + "\n\n"
+                + contextText + "\n"
+                + "Please:\n"
+                + "1. Summarize what each tool returned\n"
+                + "2. Identify patterns, anomalies or failures\n"
+                + "3. Diagnose root causes for any failures\n"
+                + "4. Recommend next steps or follow-up checks";
         String response = new OllamaAgentClient().generate(prompt, config);
-        System.out.println("Recipe assistant:");
+        seqLog.logSequence("LLM", "RecipeCliHandler", "runRecipeLlm", "Received Analysis");
+        System.out.println("\n=== AI Analysis ===");
         System.out.println(TerminalMarkdownRenderer.toTerminalText(response));
     }
 

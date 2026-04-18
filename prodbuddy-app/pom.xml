@@ -58,11 +58,26 @@
             <artifactId>prodbuddy-tools-codecontext</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <dependency>
+            <groupId>com.prodbuddy</groupId>
+            <artifactId>prodbuddy-tools-json</artifactId>
+            <version>${project.version}</version>
+        </dependency>
             <dependency>
                 <groupId>com.prodbuddy</groupId>
                 <artifactId>prodbuddy-recipes</artifactId>
                 <version>${project.version}</version>
             </dependency>
+        <dependency>
+            <groupId>com.prodbuddy</groupId>
+            <artifactId>prodbuddy-context</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.prodbuddy</groupId>
+            <artifactId>prodbuddy-tools-git</artifactId>
+            <version>${project.version}</version>
+        </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-api</artifactId>

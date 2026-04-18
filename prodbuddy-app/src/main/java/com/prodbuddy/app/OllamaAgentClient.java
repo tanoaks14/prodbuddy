@@ -7,15 +7,21 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 
+import com.prodbuddy.observation.SequenceLogger;
+import com.prodbuddy.observation.Slf4jSequenceLogger;
+
 public final class OllamaAgentClient {
 
     private final HttpClient client;
+    private final SequenceLogger seqLog;
 
     public OllamaAgentClient() {
         this.client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+        this.seqLog = new Slf4jSequenceLogger(OllamaAgentClient.class);
     }
 
     public String generate(String prompt, AgentConfig config) {
+        seqLog.logSequence("Client", "OllamaAgentClient", "generate", "Sending prompt to LLM");
         String effectivePrompt = withFunctionCallingInstructions(prompt, config);
         boolean thinking = config.thinkingEnabled()
                 || (config.functionCallingEnabled() && config.functionCallingWithThinking());
@@ -32,8 +38,10 @@ public final class OllamaAgentClient {
         }
         try {
             HttpResponse<String> response = client.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+            seqLog.logSequence("OllamaAgentClient", "Client", "generate", "LLM Responded: " + response.statusCode());
             return normalizeResponseBody(response.body());
         } catch (IOException | InterruptedException exception) {
+            seqLog.logSequence("OllamaAgentClient", "Client", "generate", "LLM Failed");
             if (exception instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }

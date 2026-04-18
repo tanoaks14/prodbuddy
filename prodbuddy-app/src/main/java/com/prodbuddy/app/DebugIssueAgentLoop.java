@@ -9,11 +9,14 @@ import com.prodbuddy.core.tool.ToolContext;
 import com.prodbuddy.core.tool.ToolError;
 import com.prodbuddy.core.tool.ToolRequest;
 import com.prodbuddy.core.tool.ToolResponse;
+import com.prodbuddy.observation.SequenceLogger;
+import com.prodbuddy.observation.Slf4jSequenceLogger;
 
 public final class DebugIssueAgentLoop {
 
     private final DebugToolExecutor executor;
     private final DebugProgressListener progressListener;
+    private final SequenceLogger seqLog;
 
     public DebugIssueAgentLoop(DebugToolExecutor executor) {
         this(executor, DebugProgressListener.noop());
@@ -22,34 +25,43 @@ public final class DebugIssueAgentLoop {
     public DebugIssueAgentLoop(DebugToolExecutor executor, DebugProgressListener progressListener) {
         this.executor = executor;
         this.progressListener = progressListener == null ? DebugProgressListener.noop() : progressListener;
+        this.seqLog = new Slf4jSequenceLogger(DebugIssueAgentLoop.class);
     }
 
     public ToolResponse run(String issueQuery, ToolContext context) {
-        List<DebugStep> plan = plan(issueQuery, context);
+        seqLog.logSequence("Client", "DebugIssueAgentLoop", "run", "Starting debug loop");
         Map<String, Object> stepResults = new LinkedHashMap<>();
         List<Map<String, Object>> stepFailures = new ArrayList<>();
-
-        for (DebugStep step : plan) {
-            progressListener.onStepStart(step.name(), step.request(), step.description());
-            ToolResponse response = safeExecute(step.request(), context);
-            if (response.success()) {
-                stepResults.put(step.name(), response.data());
-                progressListener.onStepFinish(step.name(), step.request(), true, summarizeStepData(response.data()));
-                continue;
-            }
-            stepFailures.add(failure(step.name(), response.errors()));
-            progressListener.onStepFinish(step.name(), step.request(), false, summarizeErrors(response.errors()));
+        for (DebugStep step : plan(issueQuery, context)) {
+            processStep(step, context, stepResults, stepFailures);
         }
-
+        String status = stepFailures.isEmpty() ? "healthy" : "attention_required";
+        seqLog.logSequence("DebugIssueAgentLoop", "Client", "run", "Completed: " + status);
         Map<String, Object> report = new LinkedHashMap<>();
         report.put("issue", issueQuery);
-        report.put("status", stepFailures.isEmpty() ? "healthy" : "attention_required");
+        report.put("status", status);
         report.put("successfulSteps", stepResults.size());
         report.put("failedSteps", stepFailures.size());
         report.put("steps", stepResults);
         report.put("failures", stepFailures);
         report.put("nextActions", nextActions(stepFailures));
         return ToolResponse.ok(report);
+    }
+
+    private void processStep(
+            DebugStep step, ToolContext context,
+            Map<String, Object> stepResults,
+            List<Map<String, Object>> stepFailures) {
+        seqLog.logSequence("DebugIssueAgentLoop", "Orchestrator", "executeStep", "Step: " + step.name());
+        progressListener.onStepStart(step.name(), step.request(), step.description());
+        ToolResponse response = safeExecute(step.request(), context);
+        if (response.success()) {
+            stepResults.put(step.name(), response.data());
+            progressListener.onStepFinish(step.name(), step.request(), true, summarizeStepData(response.data()));
+        } else {
+            stepFailures.add(failure(step.name(), response.errors()));
+            progressListener.onStepFinish(step.name(), step.request(), false, summarizeErrors(response.errors()));
+        }
     }
 
     private List<DebugStep> plan(String issueQuery, ToolContext context) {

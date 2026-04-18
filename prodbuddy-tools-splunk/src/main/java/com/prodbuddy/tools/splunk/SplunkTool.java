@@ -18,6 +18,8 @@ import com.prodbuddy.core.tool.ToolContext;
 import com.prodbuddy.core.tool.ToolMetadata;
 import com.prodbuddy.core.tool.ToolRequest;
 import com.prodbuddy.core.tool.ToolResponse;
+import com.prodbuddy.observation.SequenceLogger;
+import com.prodbuddy.observation.Slf4jSequenceLogger;
 
 public final class SplunkTool implements Tool {
 
@@ -32,11 +34,13 @@ public final class SplunkTool implements Tool {
     private final SplunkOperationGuard guard;
     private final SplunkQueryBuilder queryBuilder;
     private final HttpClient client;
+    private final SequenceLogger seqLog;
 
     public SplunkTool(SplunkOperationGuard guard) {
         this.guard = guard;
         this.queryBuilder = new SplunkQueryBuilder();
         this.client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+        this.seqLog = new Slf4jSequenceLogger(SplunkTool.class);
     }
 
     @Override
@@ -55,13 +59,16 @@ public final class SplunkTool implements Tool {
 
     @Override
     public ToolResponse execute(ToolRequest request, ToolContext context) {
+        seqLog.logSequence("AgentLoopOrchestrator", "splunk", "execute", "Executing Splunk " + request.operation());
         String operation = request.operation().toLowerCase();
         if (!guard.isAllowed(operation)) {
+            seqLog.logSequence("splunk", "AgentLoopOrchestrator", "execute", "Forbidden operation");
             return ToolResponse.failure("SPLUNK_FORBIDDEN", "Only read/search operations are allowed");
         }
 
         String baseUrl = context.env("SPLUNK_BASE_URL");
         if (baseUrl == null || baseUrl.isBlank()) {
+            seqLog.logSequence("splunk", "AgentLoopOrchestrator", "execute", "Missing SPLUNK_BASE_URL");
             return ToolResponse.failure("SPLUNK_CONFIG", "SPLUNK_BASE_URL is required");
         }
 
@@ -75,6 +82,7 @@ public final class SplunkTool implements Tool {
         String search = queryBuilder.resolveSearch(request, context);
         String path = queryBuilder.resolvePath(operation, request.payload());
         String body = queryBuilder.buildBody(operation, request.payload(), search);
+        seqLog.logSequence("splunk", "SplunkAPI", "send", "Sending query: " + operation);
         HttpRequest httpRequest = buildRequest(baseUrl, path, body, authHeader);
         return send(httpRequest, operation, search, path, authMode);
     }
@@ -84,8 +92,10 @@ public final class SplunkTool implements Tool {
         try {
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() >= 400) {
+                seqLog.logSequence("SplunkAPI", "splunk", "send", "HTTP " + response.statusCode());
                 return splunkHttpFailure(response, attempted);
             }
+            seqLog.logSequence("SplunkAPI", "splunk", "send", "Success: " + response.statusCode());
             return ToolResponse.ok(Map.of(
                     "status", response.statusCode(),
                     "body", response.body(),

@@ -26,6 +26,7 @@ public final class LocalGraphDbService {
             insertDefines(connection, snapshot.defines());
             insertInherits(connection, snapshot.inherits());
             insertCalls(connection, snapshot.calls());
+            new ClassMetricsInserter().insert(connection, snapshot.metrics());
             return buildResult(dbPath, snapshot);
         } catch (Exception exception) {
             throw new IllegalStateException("Unable to build local graph DB", exception);
@@ -53,6 +54,7 @@ public final class LocalGraphDbService {
             insertDefines(connection, snapshot.defines());
             insertInherits(connection, snapshot.inherits());
             insertCalls(connection, snapshot.calls());
+            new ClassMetricsInserter().insert(connection, snapshot.metrics());
             if (!normalizedFingerprint.isBlank()) {
                 writeFingerprint(connection, normalizedFingerprint);
             }
@@ -98,6 +100,7 @@ public final class LocalGraphDbService {
             statement.execute("CREATE TABLE IF NOT EXISTS Inherits(childId VARCHAR, parentId VARCHAR, relationType VARCHAR)");
             statement.execute("CREATE TABLE IF NOT EXISTS Calls(callerMethodId VARCHAR, calledMethodId VARCHAR)");
             statement.execute("CREATE TABLE IF NOT EXISTS GraphMeta(metaKey VARCHAR PRIMARY KEY, metaValue VARCHAR)");
+            statement.execute("CREATE TABLE IF NOT EXISTS ClassMetrics(classFqn VARCHAR PRIMARY KEY, filePath VARCHAR, methodCount INT, inheritanceDepth INT, compositeScore INT)");
         }
     }
 
@@ -109,6 +112,7 @@ public final class LocalGraphDbService {
             statement.execute("DELETE FROM MethodNode");
             statement.execute("DELETE FROM ClassNode");
             statement.execute("DELETE FROM GraphMeta");
+            statement.execute("DELETE FROM ClassMetrics");
         }
     }
 
@@ -170,7 +174,7 @@ public final class LocalGraphDbService {
 
     private void insertClasses(Connection connection, List<GraphClassNode> nodes) throws Exception {
         try (PreparedStatement prepared = connection.prepareStatement(
-                "INSERT INTO ClassNode(id, fqn, name, filePath) VALUES(?, ?, ?, ?)"
+                "MERGE INTO ClassNode(id, fqn, name, filePath) KEY(id) VALUES(?, ?, ?, ?)"
         )) {
             for (GraphClassNode node : nodes) {
                 prepared.setString(1, node.id());
@@ -185,7 +189,7 @@ public final class LocalGraphDbService {
 
     private void insertMethods(Connection connection, List<GraphMethodNode> nodes) throws Exception {
         try (PreparedStatement prepared = connection.prepareStatement(
-                "INSERT INTO MethodNode(id, classFqn, name, signature, filePath) VALUES(?, ?, ?, ?, ?)"
+                "MERGE INTO MethodNode(id, classFqn, name, signature, filePath) KEY(id) VALUES(?, ?, ?, ?, ?)"
         )) {
             for (GraphMethodNode node : nodes) {
                 prepared.setString(1, node.id());

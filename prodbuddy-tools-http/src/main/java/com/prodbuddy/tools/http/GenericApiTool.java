@@ -13,16 +13,20 @@ import com.prodbuddy.core.tool.ToolContext;
 import com.prodbuddy.core.tool.ToolMetadata;
 import com.prodbuddy.core.tool.ToolRequest;
 import com.prodbuddy.core.tool.ToolResponse;
+import com.prodbuddy.observation.SequenceLogger;
+import com.prodbuddy.observation.Slf4jSequenceLogger;
 
 public final class GenericApiTool implements Tool {
 
     private static final String NAME = "http";
     private final HttpMethodSupport methodSupport;
     private final HttpClient client;
+    private final SequenceLogger seqLog;
 
     public GenericApiTool(HttpMethodSupport methodSupport) {
         this.methodSupport = methodSupport;
         this.client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+        this.seqLog = new Slf4jSequenceLogger(GenericApiTool.class);
     }
 
     @Override
@@ -41,6 +45,7 @@ public final class GenericApiTool implements Tool {
 
     @Override
     public ToolResponse execute(ToolRequest request, ToolContext context) {
+        seqLog.logSequence("AgentLoopOrchestrator", "http", "execute", "HTTP " + request.operation());
         String method = String.valueOf(request.payload().getOrDefault("method", request.operation())).toUpperCase();
         if (!methodSupport.supports(method)) {
             return ToolResponse.failure("HTTP_METHOD", "Unsupported method: " + method);
@@ -51,6 +56,7 @@ public final class GenericApiTool implements Tool {
             return ToolResponse.failure("HTTP_URL", "url is required");
         }
 
+        seqLog.logSequence("http", "ExternalAPI", "send", method + " " + url);
         HttpRequest httpRequest = buildRequest(method, url, request.payload(), context);
         return send(httpRequest, method, url);
     }
@@ -105,13 +111,28 @@ public final class GenericApiTool implements Tool {
     private ToolResponse send(HttpRequest httpRequest, String method, String url) {
         try {
             HttpResponse<String> response = client.send(httpRequest, HttpResponse.BodyHandlers.ofString());
-            return ToolResponse.ok(Map.of(
-                    "method", method,
-                    "url", url,
-                    "status", response.statusCode(),
-                    "body", response.body()
-            ));
+            seqLog.logSequence("ExternalAPI", "http", "send", "Response: " + response.statusCode());
+            Map<String, Object> responseData = new java.util.HashMap<>();
+            responseData.put("method", method);
+            responseData.put("url", url);
+            responseData.put("status", response.statusCode());
+            responseData.put("body", response.body());
+            
+            try {
+                com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                com.fasterxml.jackson.databind.JsonNode node = mapper.readTree(response.body());
+                if (node.isObject()) {
+                    responseData.put("jsonBody", mapper.convertValue(node, Map.class));
+                } else if (node.isArray()) {
+                    responseData.put("jsonBody", mapper.convertValue(node, java.util.List.class));
+                }
+            } catch (Exception e) {
+                // Ignore parsing errors, it just means body is not json
+            }
+
+            return ToolResponse.ok(responseData);
         } catch (Exception exception) {
+            seqLog.logSequence("ExternalAPI", "http", "send", "Failed: " + exception.getMessage());
             return ToolResponse.failure("HTTP_CALL_FAILED", exception.getMessage());
         }
     }

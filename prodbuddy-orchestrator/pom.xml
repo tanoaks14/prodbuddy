@@ -18,5 +18,10 @@
             <artifactId>prodbuddy-core</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <dependency>
+            <groupId>com.prodbuddy</groupId>
+            <artifactId>prodbuddy-observation</artifactId>
+            <version>${project.version}</version>
+        </dependency>
     </dependencies>
 </project>

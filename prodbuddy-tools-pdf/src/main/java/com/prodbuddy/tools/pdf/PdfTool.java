@@ -14,9 +14,11 @@ public final class PdfTool implements Tool {
 
     private static final String NAME = "pdf";
     private final OpenDataLoaderPdfAdapter adapter;
+    private final com.prodbuddy.observation.SequenceLogger seqLog;
 
     public PdfTool(OpenDataLoaderPdfAdapter adapter) {
         this.adapter = adapter;
+        this.seqLog = new com.prodbuddy.observation.Slf4jSequenceLogger(PdfTool.class);
     }
 
     @Override
@@ -31,6 +33,7 @@ public final class PdfTool implements Tool {
 
     @Override
     public ToolResponse execute(ToolRequest request, ToolContext context) throws ToolExecutionException {
+        seqLog.logSequence("AgentLoopOrchestrator", "PdfTool", "execute", "Processing PDF operation");
         String pathText = String.valueOf(request.payload().getOrDefault("path", ""));
         if (pathText.isBlank()) {
             return ToolResponse.failure("PDF_BAD_REQUEST", "path is required");
@@ -38,11 +41,13 @@ public final class PdfTool implements Tool {
 
         Path path = Path.of(pathText);
         if ("read".equalsIgnoreCase(request.operation())) {
+            seqLog.logSequence("PdfTool", "OpenDataLoaderPdfAdapter", "extract", "Delegating read to adapter");
             return ToolResponse.ok(adapter.extract(path));
         }
 
         if ("create".equalsIgnoreCase(request.operation())) {
             String content = String.valueOf(request.payload().getOrDefault("content", ""));
+            seqLog.logSequence("PdfTool", "OpenDataLoaderPdfAdapter", "create", "Delegating create to adapter");
             return ToolResponse.ok(adapter.create(path, content));
         }
 

@@ -123,6 +123,6 @@ class LocalGraphDbServiceTest {
         List<GraphDefineEdge> defines = java.util.Arrays.stream(names)
                 .map(name -> new GraphDefineEdge("c-" + name, "m-" + name))
                 .toList();
-        return new JavaGraphSnapshot(classes, methods, defines, List.of(), List.of());
+        return new JavaGraphSnapshot(classes, methods, defines, List.of(), List.of(), List.of());
     }
 }

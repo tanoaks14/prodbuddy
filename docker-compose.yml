@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.0
+    container_name: prodbuddy-elastic
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+
+  splunk:
+    image: splunk/splunk:latest
+    container_name: prodbuddy-splunk
+    environment:
+      - SPLUNK_START_ARGS=--accept-license
+      - SPLUNK_PASSWORD=ProdBuddyPass123!
+      - SPLUNK_ROLE=splunk_standalone
+    ports:
+      - "8000:8000"  # Web UI
+      - "8089:8089"  # REST API
+    healthcheck:
+      test: ["CMD", "curl", "-k", "-f", "https://localhost:8089/services/auth/login"]
+      interval: 10s
+      timeout: 5s
+      retries: 10

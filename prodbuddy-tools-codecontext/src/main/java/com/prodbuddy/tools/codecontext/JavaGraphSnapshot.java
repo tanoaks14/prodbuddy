@@ -8,7 +8,8 @@ public record JavaGraphSnapshot(
         List<GraphMethodNode> methods,
         List<GraphDefineEdge> defines,
         List<GraphInheritanceEdge> inherits,
-        List<GraphCallEdge> calls
+        List<GraphCallEdge> calls,
+        List<ClassMetrics> metrics
         ) {
 
     public JavaGraphSnapshot     {
@@ -17,5 +18,7 @@ public record JavaGraphSnapshot(
         defines = defines == null ? List.of() : Collections.unmodifiableList(defines);
         inherits = inherits == null ? List.of() : Collections.unmodifiableList(inherits);
         calls = calls == null ? List.of() : Collections.unmodifiableList(calls);
+        metrics = metrics == null ? List.of() : Collections.unmodifiableList(metrics);
     }
 }
+

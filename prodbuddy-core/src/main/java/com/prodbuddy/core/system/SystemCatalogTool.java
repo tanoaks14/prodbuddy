@@ -12,16 +12,20 @@ import com.prodbuddy.core.tool.ToolRegistry;
 import com.prodbuddy.core.tool.ToolRequest;
 import com.prodbuddy.core.tool.ToolResponse;
 import com.prodbuddy.core.tool.ToolRouter;
+import com.prodbuddy.observation.SequenceLogger;
+import com.prodbuddy.observation.Slf4jSequenceLogger;
 
 public final class SystemCatalogTool implements Tool {
 
     private static final String NAME = "system";
     private final Supplier<ToolRegistry> registrySupplier;
     private final ToolRouter router;
+    private final SequenceLogger seqLog;
 
     public SystemCatalogTool(Supplier<ToolRegistry> registrySupplier, ToolRouter router) {
         this.registrySupplier = registrySupplier;
         this.router = router;
+        this.seqLog = new Slf4jSequenceLogger(SystemCatalogTool.class);
     }
 
     @Override
@@ -41,6 +45,7 @@ public final class SystemCatalogTool implements Tool {
 
     @Override
     public ToolResponse execute(ToolRequest request, ToolContext context) {
+        seqLog.logSequence("AgentLoopOrchestrator", "system", "execute", "System " + request.operation());
         return switch (request.operation().toLowerCase()) {
             case "list_tools" ->
                 listTools();

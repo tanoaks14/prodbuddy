@@ -9,15 +9,18 @@ import java.util.Optional;
 public final class ToolRegistry {
 
     private final Map<String, Tool> toolsByName;
+    private final com.prodbuddy.observation.SequenceLogger seqLog;
 
     public ToolRegistry(Collection<Tool> tools) {
         this.toolsByName = new LinkedHashMap<>();
         for (Tool tool : tools) {
             toolsByName.put(tool.metadata().name(), tool);
         }
+        this.seqLog = new com.prodbuddy.observation.Slf4jSequenceLogger(ToolRegistry.class);
     }
 
     public Optional<Tool> find(String toolName) {
+        seqLog.logSequence("ToolRegistry", "InternalMap", "get", "Look up exact match");
         return Optional.ofNullable(toolsByName.get(toolName));
     }
 

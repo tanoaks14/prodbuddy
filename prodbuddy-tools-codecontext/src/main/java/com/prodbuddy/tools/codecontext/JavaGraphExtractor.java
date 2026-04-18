@@ -24,12 +24,13 @@ public final class JavaGraphExtractor {
         List<GraphDefineEdge> defines = new ArrayList<>();
         List<GraphInheritanceEdge> inherits = new ArrayList<>();
         List<GraphCallEdge> calls = new ArrayList<>();
+        List<ClassMetrics> metrics = new ArrayList<>();
         try (Stream<Path> files = Files.walk(rootPath)) {
-            files.filter(this::isJavaFile).forEach(path -> parseFile(path, classes, methods, defines, inherits, calls));
+            files.filter(this::isJavaFile).forEach(path -> parseFile(path, classes, methods, defines, inherits, calls, metrics));
         } catch (IOException exception) {
             throw new IllegalStateException("Unable to extract graph from " + rootPath, exception);
         }
-        return new JavaGraphSnapshot(classes, methods, defines, inherits, calls);
+        return new JavaGraphSnapshot(classes, methods, defines, inherits, calls, metrics);
     }
 
     private boolean isJavaFile(Path path) {
@@ -42,7 +43,8 @@ public final class JavaGraphExtractor {
             List<GraphMethodNode> methods,
             List<GraphDefineEdge> defines,
             List<GraphInheritanceEdge> inherits,
-            List<GraphCallEdge> calls
+            List<GraphCallEdge> calls,
+            List<ClassMetrics> metrics
     ) {
         try {
             JavaParser parser = new JavaParser();
@@ -52,7 +54,7 @@ public final class JavaGraphExtractor {
             }
             String pkg = unit.getPackageDeclaration().map(p -> p.getNameAsString()).orElse("");
             unit.findAll(ClassOrInterfaceDeclaration.class).forEach(type
-                    -> parseType(type, pkg, path, classes, methods, defines, inherits, calls)
+                    -> parseType(type, pkg, path, classes, methods, defines, inherits, calls, metrics)
             );
         } catch (IOException exception) {
             // Skip unreadable files.
@@ -67,13 +69,18 @@ public final class JavaGraphExtractor {
             List<GraphMethodNode> methods,
             List<GraphDefineEdge> defines,
             List<GraphInheritanceEdge> inherits,
-            List<GraphCallEdge> calls
+            List<GraphCallEdge> calls,
+            List<ClassMetrics> metrics
     ) {
         String classFqn = pkg.isBlank() ? type.getNameAsString() : pkg + "." + type.getNameAsString();
         classes.add(new GraphClassNode(classFqn, classFqn, type.getNameAsString(), path.toString()));
         addInheritance(type, classFqn, inherits);
         Map<String, String> knownMethods = addMethods(type, classFqn, path, methods, defines);
         addCalls(type, knownMethods, calls);
+        int methodCount = type.getMethods().size() + type.getConstructors().size();
+        int inheritDepth = type.getExtendedTypes().size() + type.getImplementedTypes().size();
+        metrics.add(new ClassMetrics(classFqn, path.toString(), methodCount, inheritDepth,
+                ClassMetrics.score(methodCount, inheritDepth)));
     }
 
     private void addInheritance(

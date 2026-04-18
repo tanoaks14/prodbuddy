@@ -13,150 +13,198 @@ import com.prodbuddy.core.tool.ToolContext;
 import com.prodbuddy.core.tool.ToolMetadata;
 import com.prodbuddy.core.tool.ToolRequest;
 import com.prodbuddy.core.tool.ToolResponse;
+import com.prodbuddy.observation.SequenceLogger;
+import com.prodbuddy.observation.Slf4jSequenceLogger;
 
+/** Elasticsearch read-only query and analysis tool. */
 public final class ElasticsearchTool implements Tool {
 
     private static final String NAME = "elasticsearch";
     private final ElasticsearchQueryBuilder queryBuilder;
     private final ElasticReadOnlyGuard readOnlyGuard;
     private final HttpClient client;
+    private final SequenceLogger seqLog;
 
-    public ElasticsearchTool(ElasticsearchQueryBuilder queryBuilder) {
-        this.queryBuilder = queryBuilder;
+    /** Primary constructor. */
+    public ElasticsearchTool(final ElasticsearchQueryBuilder b) {
+        this.queryBuilder = b;
         this.readOnlyGuard = new ElasticReadOnlyGuard();
-        this.client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+        this.client = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(5)).build();
+        this.seqLog = new Slf4jSequenceLogger(
+                ElasticsearchTool.class);
     }
 
     @Override
     public ToolMetadata metadata() {
-        return new ToolMetadata(
-                NAME,
-                "Elasticsearch analyzer/query tool",
-                Set.of("elastic.analyze", "elastic.query", "elastic.search", "elastic.count", "elastic.request")
-        );
+        return new ToolMetadata(NAME, "Elasticsearch tool",
+                Set.of("elastic.analyze", "elastic.query",
+                        "elastic.search", "elastic.count",
+                        "elastic.request"));
     }
 
     @Override
-    public boolean supports(ToolRequest request) {
+    public boolean supports(final ToolRequest request) {
         return "elasticsearch".equalsIgnoreCase(request.intent());
     }
 
     @Override
-    public ToolResponse execute(ToolRequest request, ToolContext context) {
-        String operation = request.operation().toLowerCase();
-        if ("analyze".equals(operation)) {
-            String query = queryBuilder.fromPayload(request.payload());
-            return ToolResponse.ok(Map.of("query", query, "analysis", "Query validated for v1 guardrails."));
+    public ToolResponse execute(
+            final ToolRequest request, final ToolContext context) {
+        seqLog.logSequence("AgentLoopOrchestrator",
+                "elasticsearch", "execute",
+                "ES " + request.operation());
+        final String op = request.operation().toLowerCase();
+        switch (op) {
+            case "analyze": return handleAnalyze(request);
+            case "query":
+            case "search":
+                return executeRequest(request, context,
+                        "_search", "POST");
+            case "count":
+                return executeRequest(request, context,
+                        "_count", "POST");
+            case "request":
+                return executeRawRequest(request, context);
+            default:
+                return ToolResponse.failure(
+                        "ELASTIC_UNSUPPORTED_OPERATION",
+                        "supported: analyze,query,search,count,request");
         }
-
-        if ("query".equals(operation) || "search".equals(operation)) {
-            return executeRequest(request, context, "_search", "POST");
-        }
-        if ("count".equals(operation)) {
-            return executeRequest(request, context, "_count", "POST");
-        }
-        if ("request".equals(operation)) {
-            return executeRawRequest(request, context);
-        }
-
-        return ToolResponse.failure("ELASTIC_UNSUPPORTED_OPERATION", "supported operations are analyze, query, search, count, request");
     }
 
-    private ToolResponse executeRawRequest(ToolRequest request, ToolContext context) {
-        String endpoint = String.valueOf(request.payload().getOrDefault("endpoint", "_search"));
-        String method = String.valueOf(request.payload().getOrDefault("method", "POST")).toUpperCase();
-        return executeRequest(request, context, endpoint, method);
+    private ToolResponse handleAnalyze(final ToolRequest request) {
+        final String query = queryBuilder.fromPayload(
+                request.payload());
+        seqLog.logSequence("elasticsearch",
+                "AgentLoopOrchestrator", "execute", "Analyzed");
+        return ToolResponse.ok(Map.of("query", query,
+                "analysis", "Query validated for v1 guardrails."));
     }
 
-    private ToolResponse executeRequest(ToolRequest request, ToolContext context, String endpoint, String method) {
-        String baseUrl = context.env("ELASTICSEARCH_BASE_URL");
+    private ToolResponse executeRawRequest(
+            final ToolRequest request, final ToolContext context) {
+        final String ep = String.valueOf(
+                request.payload().getOrDefault("endpoint", "_search"));
+        final String m = String.valueOf(
+                request.payload().getOrDefault("method", "POST"))
+                .toUpperCase();
+        return executeRequest(request, context, ep, m);
+    }
+
+    private ToolResponse executeRequest(
+            final ToolRequest request, final ToolContext context,
+            final String endpoint, final String method) {
+        final String baseUrl = context.env("ELASTICSEARCH_BASE_URL");
         if (baseUrl == null || baseUrl.isBlank()) {
-            return ToolResponse.failure("ELASTIC_CONFIG", "ELASTICSEARCH_BASE_URL is required");
+            return ToolResponse.failure("ELASTIC_CONFIG",
+                    "ELASTICSEARCH_BASE_URL is required");
         }
         if (!readOnlyGuard.isAllowed(endpoint, method)) {
-            return ToolResponse.failure("ELASTIC_READ_ONLY", "endpoint/method not allowed in read-only mode");
+            return ToolResponse.failure("ELASTIC_READ_ONLY",
+                    "endpoint/method not allowed");
         }
+        return sendRequest(request, context, baseUrl, endpoint, method);
+    }
 
-        String index = resolveIndex(request, context);
-        String body = queryBuilder.fromPayload(request.payload());
-        int timeoutSeconds = Integer.parseInt(context.envOrDefault("ELASTICSEARCH_TIMEOUT_SECONDS", "15"));
-        int maxBodyChars = Integer.parseInt(context.envOrDefault("ELASTICSEARCH_MAX_BODY_CHARS", "20000"));
-        HttpRequest.Builder builder = createRequest(baseUrl, index, endpoint, method, body, timeoutSeconds);
+    private ToolResponse sendRequest(
+            final ToolRequest request, final ToolContext context,
+            final String baseUrl, final String endpoint,
+            final String method) {
+        final String index = resolveIndex(request, context);
+        final String body = queryBuilder.fromPayload(request.payload());
+        final int timeout = Integer.parseInt(context.envOrDefault(
+                "ELASTICSEARCH_TIMEOUT_SECONDS", "15"));
+        final int maxChars = Integer.parseInt(context.envOrDefault(
+                "ELASTICSEARCH_MAX_BODY_CHARS", "20000"));
+        final HttpRequest.Builder builder = createRequest(
+                baseUrl, index, endpoint, method, body, timeout);
         addAuthHeader(builder, request, context);
+        return doSend(builder, endpoint, method, maxChars);
+    }
 
+    private ToolResponse doSend(
+            final HttpRequest.Builder builder, final String endpoint,
+            final String method, final int maxChars) {
         try {
-            HttpResponse<String> response = client.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+            seqLog.logSequence("elasticsearch", "ElasticCluster",
+                    "executeRequest", method + " " + endpoint);
+            final HttpResponse<String> resp = client.send(
+                    builder.build(),
+                    HttpResponse.BodyHandlers.ofString());
+            seqLog.logSequence("ElasticCluster", "elasticsearch",
+                    "executeRequest", "Response: " + resp.statusCode());
+            final boolean trunc = resp.body() != null
+                    && resp.body().length() > maxChars;
             return ToolResponse.ok(Map.of(
-                    "status", response.statusCode(),
-                    "body", truncate(response.body(), maxBodyChars),
-                    "endpoint", endpoint,
-                    "method", method,
-                    "truncated", response.body() != null && response.body().length() > maxBodyChars
-            ));
+                    "status", resp.statusCode(),
+                    "body", truncate(resp.body(), maxChars),
+                    "endpoint", endpoint, "method", method,
+                    "truncated", trunc));
         } catch (Exception ex) {
+            seqLog.logSequence("ElasticCluster", "elasticsearch",
+                    "executeRequest", "Failed");
             return elasticFailure(ex);
         }
     }
 
-    private ToolResponse elasticFailure(Exception exception) {
-        String message = exception.getMessage();
-        if (message == null || message.isBlank()) {
-            message = exception.getClass().getSimpleName();
+    private ToolResponse elasticFailure(final Exception exception) {
+        String msg = exception.getMessage();
+        if (msg == null || msg.isBlank()) {
+            msg = exception.getClass().getSimpleName();
         }
-        return ToolResponse.failure("ELASTIC_QUERY_FAILED", message);
+        return ToolResponse.failure("ELASTIC_QUERY_FAILED", msg);
     }
 
-    private String resolveIndex(ToolRequest request, ToolContext context) {
-        return String.valueOf(
-                request.payload().getOrDefault("index", context.envOrDefault("ELASTICSEARCH_DEFAULT_INDEX", "_all"))
-        );
+    private String resolveIndex(
+            final ToolRequest request, final ToolContext context) {
+        return String.valueOf(request.payload().getOrDefault("index",
+                context.envOrDefault(
+                        "ELASTICSEARCH_DEFAULT_INDEX", "_all")));
     }
 
     private HttpRequest.Builder createRequest(
-            String baseUrl,
-            String index,
-            String endpoint,
-            String method,
-            String body,
-            int timeoutSeconds
-    ) {
-        String path = normalizePath(baseUrl, index, endpoint);
-        HttpRequest.Builder builder = HttpRequest.newBuilder()
+            final String baseUrl, final String index,
+            final String endpoint, final String method,
+            final String body, final int timeoutSeconds) {
+        final String path = normalizePath(baseUrl, index, endpoint);
+        final HttpRequest.Builder b = HttpRequest.newBuilder()
                 .uri(URI.create(path))
                 .timeout(Duration.ofSeconds(timeoutSeconds))
                 .header("Content-Type", "application/json");
         if ("GET".equalsIgnoreCase(method)) {
-            return builder.GET();
+            return b.GET();
         }
-        return builder.method(method, HttpRequest.BodyPublishers.ofString(body));
+        return b.method(method,
+                HttpRequest.BodyPublishers.ofString(body));
     }
 
-    private String normalizePath(String baseUrl, String index, String endpoint) {
-        String cleanBase = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
-        String cleanEndpoint = endpoint.startsWith("/") ? endpoint.substring(1) : endpoint;
-        return cleanBase + "/" + index + "/" + cleanEndpoint;
+    private String normalizePath(
+            final String baseUrl, final String index,
+            final String endpoint) {
+        final String base = baseUrl.endsWith("/")
+                ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
+        final String ep = endpoint.startsWith("/")
+                ? endpoint.substring(1) : endpoint;
+        return base + "/" + index + "/" + ep;
     }
 
-    private String truncate(String body, int maxBodyChars) {
-        if (body == null || body.length() <= maxBodyChars) {
+    private String truncate(final String body, final int max) {
+        if (body == null || body.length() <= max) {
             return body;
         }
-        return body.substring(0, maxBodyChars);
+        return body.substring(0, max);
     }
 
     private void addAuthHeader(
-            HttpRequest.Builder builder,
-            ToolRequest request,
-            ToolContext context
-    ) {
-        String apiKey = context.env("ELASTICSEARCH_API_KEY");
-        boolean authEnabled = Boolean.parseBoolean(
-                String.valueOf(request.payload().getOrDefault(
-                        "authEnabled",
-                        context.envOrDefault("ELASTICSEARCH_AUTH_ENABLED", "true")
-                ))
-        );
-        if (authEnabled && apiKey != null && !apiKey.isBlank()) {
+            final HttpRequest.Builder builder,
+            final ToolRequest request, final ToolContext context) {
+        final String apiKey = context.env("ELASTICSEARCH_API_KEY");
+        final boolean auth = Boolean.parseBoolean(String.valueOf(
+                request.payload().getOrDefault("authEnabled",
+                        context.envOrDefault(
+                                "ELASTICSEARCH_AUTH_ENABLED", "true"))));
+        if (auth && apiKey != null && !apiKey.isBlank()) {
             builder.header("Authorization", "ApiKey " + apiKey);
         }
     }

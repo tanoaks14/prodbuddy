@@ -12,6 +12,7 @@
 
     <modules>
         <module>prodbuddy-core</module>
+        <module>prodbuddy-observation</module>
         <module>prodbuddy-tools-pdf</module>
         <module>prodbuddy-tools-elasticsearch</module>
         <module>prodbuddy-tools-newrelic</module>
@@ -21,7 +22,10 @@
         <module>prodbuddy-tools-codecontext</module>
         <module>prodbuddy-recipes</module>
         <module>prodbuddy-orchestrator</module>
+        <module>prodbuddy-context</module>
         <module>prodbuddy-app</module>
+        <module>prodbuddy-tools-json</module>
+        <module>prodbuddy-tools-git</module>
     </modules>
 
     <properties>
@@ -52,6 +56,16 @@
                 <groupId>com.fasterxml.jackson.core</groupId>
                 <artifactId>jackson-databind</artifactId>
                 <version>${jackson.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.slf4j</groupId>
+                <artifactId>slf4j-api</artifactId>
+                <version>2.0.12</version>
+            </dependency>
+            <dependency>
+                <groupId>org.slf4j</groupId>
+                <artifactId>slf4j-simple</artifactId>
+                <version>2.0.12</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

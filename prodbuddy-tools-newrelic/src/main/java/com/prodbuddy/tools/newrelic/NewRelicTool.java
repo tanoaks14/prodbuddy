@@ -8,6 +8,8 @@ import com.prodbuddy.core.tool.ToolContext;
 import com.prodbuddy.core.tool.ToolMetadata;
 import com.prodbuddy.core.tool.ToolRequest;
 import com.prodbuddy.core.tool.ToolResponse;
+import com.prodbuddy.observation.SequenceLogger;
+import com.prodbuddy.observation.Slf4jSequenceLogger;
 
 public final class NewRelicTool implements Tool {
 
@@ -16,6 +18,7 @@ public final class NewRelicTool implements Tool {
     private final NrqlQueryBuilder queryBuilder;
     private final NrqlQueryValidator validator;
     private final NrqlGraphQLClient client;
+    private final SequenceLogger seqLog;
 
     public NewRelicTool(NewRelicScenarioCatalog catalog) {
         this(catalog, new NrqlQueryBuilder(), new NrqlQueryValidator(NrqlGuardrails.defaults()), new NrqlGraphQLClient());
@@ -31,6 +34,7 @@ public final class NewRelicTool implements Tool {
         this.queryBuilder = queryBuilder;
         this.validator = validator;
         this.client = client;
+        this.seqLog = new Slf4jSequenceLogger(NewRelicTool.class);
     }
 
     @Override
@@ -49,14 +53,17 @@ public final class NewRelicTool implements Tool {
 
     @Override
     public ToolResponse execute(ToolRequest request, ToolContext context) {
+        seqLog.logSequence("AgentLoopOrchestrator", "newrelic", "execute", "Executing NewRelic " + request.operation());
         String operation = request.operation().toLowerCase();
         if ("scenarios".equals(operation)) {
+            seqLog.logSequence("newrelic", "AgentLoopOrchestrator", "execute", "Listing scenarios");
             return ToolResponse.ok(Map.of("scenarios", catalog.supported(), "preferredOperation", "query_metrics"));
         }
 
         NrqlQueryRequest queryRequest = requestFrom(request);
         if ("validate".equals(operation)) {
             ToolResponse validation = validator.validate(queryRequest);
+            seqLog.logSequence("newrelic", "AgentLoopOrchestrator", "execute", "Validated query");
             return validation == null ? ToolResponse.ok(Map.of("valid", true)) : validation;
         }
 
@@ -70,11 +77,15 @@ public final class NewRelicTool implements Tool {
     private ToolResponse runQuery(NrqlQueryRequest queryRequest, ToolContext context) {
         ToolResponse validation = validator.validate(queryRequest);
         if (validation != null) {
+            seqLog.logSequence("newrelic", "AgentLoopOrchestrator", "runQuery", "Validation failed");
             return validation;
         }
 
         String nrql = queryBuilder.build(queryRequest);
-        return client.execute(nrql, context);
+        seqLog.logSequence("newrelic", "NewRelicAPI", "runQuery", "Executing NRQL query");
+        ToolResponse result = client.execute(nrql, context);
+        seqLog.logSequence("NewRelicAPI", "newrelic", "runQuery", "Query complete: " + result.success());
+        return result;
     }
 
     private NrqlQueryRequest requestFrom(ToolRequest request) {
