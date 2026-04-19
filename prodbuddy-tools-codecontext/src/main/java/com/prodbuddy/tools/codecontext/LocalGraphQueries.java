@@ -15,7 +15,7 @@ import java.util.Map;
 public final class LocalGraphQueries {
 
     /** Find all MethodNode IDs that define methods in the given class FQN (or name). */
-    public List<String> findCallersByClass(Path dbPath, String classFqn) {
+    public List<String> findCallersByClass(final Path dbPath, final String classFqn) {
         String url = "jdbc:h2:file:" + dbPath.toAbsolutePath();
         String sql = "SELECT DISTINCT c.callerMethodId FROM Calls c"
                 + " JOIN MethodNode m ON c.calledMethodId = m.id"
@@ -31,7 +31,7 @@ public final class LocalGraphQueries {
     }
 
     /** Find all callerMethodIds that call the given methodId directly. */
-    public List<String> findCallersByMethodId(Path dbPath, String methodId) {
+    public List<String> findCallersByMethodId(final Path dbPath, final String methodId) {
         String url = "jdbc:h2:file:" + dbPath.toAbsolutePath();
         String sql = "SELECT callerMethodId FROM Calls WHERE calledMethodId = ?";
         try (Connection con = DriverManager.getConnection(url);
@@ -43,8 +43,48 @@ public final class LocalGraphQueries {
         }
     }
 
+    /** Find all calledMethodIds that the given methodId calls directly. */
+    public List<String> findCalleesByMethodId(final Path dbPath, final String methodId) {
+        String url = "jdbc:h2:file:" + dbPath.toAbsolutePath();
+        String sql = "SELECT calledMethodId FROM Calls WHERE callerMethodId = ?";
+        try (Connection con = DriverManager.getConnection(url);
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setString(1, methodId);
+            return collectSingleColumn(ps.executeQuery());
+        } catch (Exception ex) {
+            return List.of();
+        }
+    }
+
+    /** Find detailed MethodNode by its ID. */
+    public GraphMethodNode getMethodNode(final Path dbPath, final String methodId) {
+        String url = "jdbc:h2:file:" + dbPath.toAbsolutePath();
+        String sql = "SELECT * FROM MethodNode WHERE id = ?";
+        try (Connection con = DriverManager.getConnection(url);
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setString(1, methodId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return new GraphMethodNode(
+                            rs.getString("id"),
+                            rs.getString("classFqn"),
+                            rs.getString("name"),
+                            rs.getString("signature"),
+                            rs.getString("filePath"),
+                            rs.getString("annotations"),
+                            rs.getInt("startLine"),
+                            rs.getInt("endLine")
+                    );
+                }
+            }
+        } catch (Exception ex) {
+            // Log or ignore
+        }
+        return null;
+    }
+
     /** Returns methods with no inbound call edges. Excludes constructors, main(), and framework entry points. */
-    public List<Map<String, Object>> detectDeadCode(Path dbPath, int limit) {
+    public List<Map<String, Object>> detectDeadCode(final Path dbPath, final int limit) {
         String url = "jdbc:h2:file:" + dbPath.toAbsolutePath();
         String sql = "SELECT m.id, m.name, m.classFqn, m.filePath"
                 + " FROM MethodNode m LEFT JOIN Calls c ON m.id = c.calledMethodId"
@@ -72,7 +112,7 @@ public final class LocalGraphQueries {
     }
 
     /** Count total MethodNode rows in the database. */
-    public int countMethods(Path dbPath) {
+    public int countMethods(final Path dbPath) {
         String url = "jdbc:h2:file:" + dbPath.toAbsolutePath();
         try (Connection con = DriverManager.getConnection(url);
              PreparedStatement ps = con.prepareStatement("SELECT COUNT(*) FROM MethodNode");
@@ -84,7 +124,7 @@ public final class LocalGraphQueries {
     }
 
     /** Query ClassMetrics ordered by compositeScore descending. */
-    public List<Map<String, Object>> queryComplexityHeatmap(Path dbPath, int topN) {
+    public List<Map<String, Object>> queryComplexityHeatmap(final Path dbPath, final int topN) {
         String url = "jdbc:h2:file:" + dbPath.toAbsolutePath();
         String sql = "SELECT classFqn, filePath, methodCount, inheritanceDepth, compositeScore"
                 + " FROM ClassMetrics ORDER BY compositeScore DESC LIMIT ?";
@@ -97,7 +137,7 @@ public final class LocalGraphQueries {
         }
     }
 
-    private List<String> collectSingleColumn(ResultSet rs) throws Exception {
+    private List<String> collectSingleColumn(final ResultSet rs) throws Exception {
         List<String> result = new ArrayList<>();
         while (rs.next()) {
             result.add(rs.getString(1));
@@ -105,7 +145,8 @@ public final class LocalGraphQueries {
         return result;
     }
 
-    private List<Map<String, Object>> rows(ResultSet result, int maxRows) throws Exception {
+    private List<Map<String, Object>> rows(final ResultSet result, final int maxRows)
+            throws Exception {
         List<Map<String, Object>> rows = new ArrayList<>();
         ResultSetMetaData meta = result.getMetaData();
         int cols = meta.getColumnCount();

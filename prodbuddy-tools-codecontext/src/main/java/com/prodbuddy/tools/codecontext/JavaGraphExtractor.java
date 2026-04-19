@@ -1,6 +1,7 @@
 package com.prodbuddy.tools.codecontext;
 
 import com.github.javaparser.JavaParser;
+import com.github.javaparser.ParserConfiguration;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.ConstructorDeclaration;
@@ -48,9 +49,12 @@ public final class JavaGraphExtractor {
             List<ClassMetrics> metrics
     ) {
         try {
-            JavaParser parser = new JavaParser();
+            ParserConfiguration config = new ParserConfiguration()
+                    .setLanguageLevel(ParserConfiguration.LanguageLevel.JAVA_21);
+            JavaParser parser = new JavaParser(config);
             CompilationUnit unit = parser.parse(path).getResult().orElse(null);
             if (unit == null) {
+                System.err.println("Failed to parse: " + path);
                 return;
             }
             String pkg = unit.getPackageDeclaration().map(p -> p.getNameAsString()).orElse("");
