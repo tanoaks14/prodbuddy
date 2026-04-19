@@ -39,7 +39,7 @@ public final class SplunkTool implements Tool {
     public SplunkTool(SplunkOperationGuard guard) {
         this.guard = guard;
         this.queryBuilder = new SplunkQueryBuilder();
-        this.client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+        this.client = SplunkHttpClientFactory.buildInsecure();
         this.seqLog = new Slf4jSequenceLogger(SplunkTool.class);
     }
 
@@ -72,11 +72,11 @@ public final class SplunkTool implements Tool {
             return ToolResponse.failure("SPLUNK_CONFIG", "SPLUNK_BASE_URL is required");
         }
 
-        boolean authEnabled = resolveAuthEnabled(request, context);
-        String authMode = resolveAuthMode(request, context);
-        String authHeader = resolveAuthHeader(request, context, baseUrl, authEnabled);
-        if (authEnabled && authHeader == null) {
-            return ToolResponse.failure("SPLUNK_CONFIG", credentialsMessage(request, context));
+        String authHeader;
+        try {
+            authHeader = resolveValidAuthHeaderOrThrow(request, context, baseUrl);
+        } catch (Exception ex) {
+            return splunkExceptionFailure(ex, "operation=auth");
         }
 
         String search = queryBuilder.resolveSearch(request, context);
@@ -84,7 +84,16 @@ public final class SplunkTool implements Tool {
         String body = queryBuilder.buildBody(operation, request.payload(), search);
         seqLog.logSequence("splunk", "SplunkAPI", "send", "Sending query: " + operation);
         HttpRequest httpRequest = buildRequest(baseUrl, path, body, authHeader);
-        return send(httpRequest, operation, search, path, authMode);
+        return send(httpRequest, operation, search, path, resolveAuthMode(request, context));
+    }
+
+    private String resolveValidAuthHeaderOrThrow(ToolRequest request, ToolContext context, String baseUrl) {
+        boolean authEnabled = resolveAuthEnabled(request, context);
+        String header = resolveAuthHeader(request, context, baseUrl, authEnabled);
+        if (authEnabled && header == null) {
+            throw new RuntimeException(credentialsMessage(request, context));
+        }
+        return header;
     }
 
     private ToolResponse send(HttpRequest request, String operation, String search, String path, String authMode) {
@@ -215,14 +224,14 @@ public final class SplunkTool implements Tool {
             HttpResponse<String> response = client.send(loginRequest, HttpResponse.BodyHandlers.ofString());
             String sessionKey = extractSessionKey(response.body());
             if (sessionKey == null || sessionKey.isBlank()) {
-                return null;
+                throw new RuntimeException("Splunk authentication failed. HTTP " + response.statusCode() + ": " + response.body());
             }
             return "Splunk " + sessionKey;
         } catch (IOException ex) {
-            return null;
+            throw new RuntimeException("Splunk connectivity error: " + ex.getMessage(), ex);
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
-            return null;
+            throw new RuntimeException("Splunk auth interrupted", ex);
         }
     }
 

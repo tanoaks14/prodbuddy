@@ -124,6 +124,11 @@ final class RecipeCliHandler {
         seqLog.logSequence("RecipeCliHandler", "LLM", "runRecipeLlm", "Requesting Recipe Analysis");
         String summaryText = String.valueOf(summary).replace('"', '\'');
         String contextText = ContextFormatter.format(convCtx);
+
+        // Write to markdown context file as requested
+        String contextFilePath = name + "-context.md";
+        writeContextFile(contextFilePath, contextText);
+
         String prompt = "You are a diagnostic AI assistant. Analyze the following recipe execution.\n"
                 + "Recipe: " + name + "\n"
                 + "Execution Summary: " + summaryText + "\n\n"
@@ -132,11 +137,21 @@ final class RecipeCliHandler {
                 + "1. Summarize what each tool returned\n"
                 + "2. Identify patterns, anomalies or failures\n"
                 + "3. Diagnose root causes for any failures\n"
-                + "4. Recommend next steps or follow-up checks";
+                + "4. Recommend next steps or follow-up checks\n"
+                + "Note: For actual exact outputs/responses, tell the user they can refer to the detailed context file: " + contextFilePath;
         String response = new OllamaAgentClient().generate(prompt, config);
         seqLog.logSequence("LLM", "RecipeCliHandler", "runRecipeLlm", "Received Analysis");
         System.out.println("\n=== AI Analysis ===");
         System.out.println(TerminalMarkdownRenderer.toTerminalText(response));
+    }
+
+    private static void writeContextFile(String contextFilePath, String contextText) {
+        try {
+            java.nio.file.Files.writeString(Path.of(contextFilePath), contextText);
+            System.out.println("Detailed execution context saved to: " + contextFilePath);
+        } catch (java.io.IOException e) {
+            seqLog.logSequence("RecipeCliHandler", "FileSystem", "writeContext", "Failed to write context file: " + e.getMessage());
+        }
     }
 
     private static void printRecipeSteps(RecipeRunResult result) {

@@ -1,0 +1,56 @@
+<configuration>
+
+    <!-- Expose environment variables to logback properties -->
+    <property name="SPLUNK_HEC_ENABLED" value="${PRODBUDDY_SPLUNK_HEC_ENABLED:-false}" />
+    <property name="SPLUNK_HEC_TOKEN" value="${PRODBUDDY_SPLUNK_HEC_TOKEN:-prodbuddy-local-hec-token}" />
+    <property name="SPLUNK_HEC_URL" value="${PRODBUDDY_SPLUNK_HEC_URL:-https://localhost:8088}" />
+
+    <!-- Standard Console Appender (Only warnings/errors, AI prints via System.out bypassing this) -->
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+            <level>WARN</level>
+        </filter>
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- File Appender for verbose logs -->
+    <appender name="FILE" class="ch.qos.logback.core.FileAppender">
+        <file>prodbuddy.log</file>
+        <append>true</append>
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Splunk Http Event Collector Appender -->
+    <if condition='property("SPLUNK_HEC_ENABLED").contains("true")'>
+        <then>
+            <appender name="SPLUNK" class="com.splunk.logging.HttpEventCollectorLogbackAppender">
+                <url>${SPLUNK_HEC_URL}</url>
+                <token>${SPLUNK_HEC_TOKEN}</token>
+                <disableCertificateValidation>true</disableCertificateValidation>
+                <layout class="ch.qos.logback.classic.PatternLayout">
+                    <pattern>%msg</pattern>
+                </layout>
+            </appender>
+
+            <!-- Wrap in AsyncAppender so Splunk requests don't block the Prodbuddy thread -->
+            <appender name="ASYNC_SPLUNK" class="ch.qos.logback.classic.AsyncAppender">
+                <appender-ref ref="SPLUNK" />
+            </appender>
+        </then>
+    </if>
+
+    <root level="INFO">
+        <appender-ref ref="STDOUT" />
+        <appender-ref ref="FILE" />
+        <if condition='property("SPLUNK_HEC_ENABLED").contains("true")'>
+            <then>
+                <appender-ref ref="ASYNC_SPLUNK" />
+            </then>
+        </if>
+    </root>
+
+</configuration>

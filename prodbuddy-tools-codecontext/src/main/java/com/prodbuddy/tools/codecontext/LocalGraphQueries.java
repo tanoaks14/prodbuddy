@@ -43,12 +43,24 @@ public final class LocalGraphQueries {
         }
     }
 
-    /** Returns methods with no inbound call edges. Excludes constructors and main(). */
+    /** Returns methods with no inbound call edges. Excludes constructors, main(), and framework entry points. */
     public List<Map<String, Object>> detectDeadCode(Path dbPath, int limit) {
         String url = "jdbc:h2:file:" + dbPath.toAbsolutePath();
         String sql = "SELECT m.id, m.name, m.classFqn, m.filePath"
                 + " FROM MethodNode m LEFT JOIN Calls c ON m.id = c.calledMethodId"
                 + " WHERE c.calledMethodId IS NULL AND m.name NOT IN ('<init>', 'main')"
+                + " AND (m.annotations IS NULL OR ("
+                + " m.annotations NOT LIKE '%Mapping%' AND"
+                + " m.annotations NOT LIKE '%Bean%' AND"
+                + " m.annotations NOT LIKE '%EventListener%' AND"
+                + " m.annotations NOT LIKE '%Scheduled%' AND"
+                + " m.annotations NOT LIKE '%KafkaListener%' AND"
+                + " m.annotations NOT LIKE '%SqsListener%' AND"
+                + " m.annotations NOT LIKE '%RabbitListener%' AND"
+                + " m.annotations NOT LIKE '%PostConstruct%' AND"
+                + " m.annotations NOT LIKE '%PreDestroy%' AND"
+                + " m.annotations NOT LIKE '%Inject%'"
+                + "))"
                 + " ORDER BY m.classFqn LIMIT ?";
         try (Connection con = DriverManager.getConnection(url);
              PreparedStatement ps = con.prepareStatement(sql)) {

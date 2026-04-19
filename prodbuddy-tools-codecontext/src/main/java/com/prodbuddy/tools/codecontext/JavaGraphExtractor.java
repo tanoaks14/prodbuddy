@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public final class JavaGraphExtractor {
@@ -126,7 +127,12 @@ public final class JavaGraphExtractor {
                 .reduce((a, b) -> a + "," + b)
                 .orElse("");
         String methodId = classFqn + "#" + method.getNameAsString() + "(" + signature + ")";
-        methods.add(new GraphMethodNode(methodId, classFqn, method.getNameAsString(), signature, path.toString()));
+        String annotations = method.getAnnotations().stream()
+                .map(a -> "@" + a.getNameAsString())
+                .collect(Collectors.joining(","));
+        int startLine = method.getRange().map(r -> r.begin.line).orElse(0);
+        int endLine = method.getRange().map(r -> r.end.line).orElse(0);
+        methods.add(new GraphMethodNode(methodId, classFqn, method.getNameAsString(), signature, path.toString(), annotations, startLine, endLine));
         defines.add(new GraphDefineEdge(classFqn, methodId));
         knownMethods.put(method.getNameAsString(), methodId);
     }
@@ -144,7 +150,12 @@ public final class JavaGraphExtractor {
                 .reduce((a, b) -> a + "," + b)
                 .orElse("");
         String methodId = classFqn + "#" + ctor.getNameAsString() + "(" + signature + ")";
-        methods.add(new GraphMethodNode(methodId, classFqn, ctor.getNameAsString(), signature, path.toString()));
+        String annotations = ctor.getAnnotations().stream()
+                .map(a -> "@" + a.getNameAsString())
+                .collect(Collectors.joining(","));
+        int startLine = ctor.getRange().map(r -> r.begin.line).orElse(0);
+        int endLine = ctor.getRange().map(r -> r.end.line).orElse(0);
+        methods.add(new GraphMethodNode(methodId, classFqn, ctor.getNameAsString(), signature, path.toString(), annotations, startLine, endLine));
         defines.add(new GraphDefineEdge(classFqn, methodId));
         knownMethods.put(ctor.getNameAsString(), methodId);
     }

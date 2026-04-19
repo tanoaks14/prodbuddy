@@ -118,7 +118,7 @@ class LocalGraphDbServiceTest {
                 .map(name -> new GraphClassNode("c-" + name, "sample." + name, name, name + ".java"))
                 .toList();
         List<GraphMethodNode> methods = java.util.Arrays.stream(names)
-                .map(name -> new GraphMethodNode("m-" + name, "sample." + name, "run", "run()", name + ".java"))
+                .map(name -> new GraphMethodNode("m-" + name, "sample." + name, "run", "run()", name + ".java", "", 0, 0))
                 .toList();
         List<GraphDefineEdge> defines = java.util.Arrays.stream(names)
                 .map(name -> new GraphDefineEdge("c-" + name, "m-" + name))

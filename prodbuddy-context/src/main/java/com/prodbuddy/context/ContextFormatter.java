@@ -62,17 +62,14 @@ public final class ContextFormatter {
             StringBuilder sb, ToolInvocation inv
     ) {
         Map<String, Object> payload = inv.requestPayload();
-        if (payload.isEmpty()) {
+        if (payload == null || payload.isEmpty()) {
             return;
         }
         sb.append("  request:");
-        for (String key : List.of("url", "query", "search",
-                "index", "operation", "resource", "metric",
-                "path", "data", "key", "expected")) {
-            Object val = payload.get(key);
-            if (val != null) {
-                sb.append(" ").append(key).append("=")
-                        .append(truncate(String.valueOf(val)));
+        for (Map.Entry<String, Object> entry : payload.entrySet()) {
+            if (entry.getValue() != null && !String.valueOf(entry.getValue()).isBlank()) {
+                sb.append("\n    ").append(entry.getKey()).append("=")
+                        .append(truncate(String.valueOf(entry.getValue())));
             }
         }
         sb.append("\n");
@@ -82,28 +79,17 @@ public final class ContextFormatter {
             StringBuilder sb, ToolInvocation inv
     ) {
         Map<String, Object> data = inv.responseData();
-        Object status = data.get("status");
-        if (status != null) {
-            sb.append("  http_status: ").append(status).append("\n");
+        if (data == null || data.isEmpty()) {
+            return;
         }
-        Object body = data.get("body");
-        if (body != null) {
-            sb.append("  response_body: ")
-                    .append(truncate(String.valueOf(body))).append("\n");
+        sb.append("  response:");
+        for (Map.Entry<String, Object> entry : data.entrySet()) {
+            if (entry.getValue() != null && !String.valueOf(entry.getValue()).isBlank()) {
+                sb.append("\n    ").append(entry.getKey()).append("=")
+                        .append(truncate(String.valueOf(entry.getValue())));
+            }
         }
-        Object matches = data.get("matches");
-        if (matches != null) {
-            sb.append("  matches: ").append(matches).append("\n");
-        }
-        Object analysis = data.get("analysis");
-        if (analysis != null) {
-            sb.append("  analysis: ").append(analysis).append("\n");
-        }
-        Object tools = data.get("tools");
-        if (tools != null) {
-            sb.append("  discovered_tools: ")
-                    .append(truncate(String.valueOf(tools))).append("\n");
-        }
+        sb.append("\n");
     }
 
     private static String truncate(String value) {

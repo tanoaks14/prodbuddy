@@ -16,11 +16,15 @@ services:
     container_name: prodbuddy-splunk
     environment:
       - SPLUNK_START_ARGS=--accept-license
+      - SPLUNK_GENERAL_TERMS=--accept-sgt-current-at-splunk-com
       - SPLUNK_PASSWORD=ProdBuddyPass123!
       - SPLUNK_ROLE=splunk_standalone
+      - SPLUNK_HEC_ENABLE=1
+      - SPLUNK_HEC_TOKEN=prodbuddy-local-hec-token
     ports:
       - "8000:8000"  # Web UI
       - "8089:8089"  # REST API
+      - "8088:8088"  # HEC Intest
     healthcheck:
       test: ["CMD", "curl", "-k", "-f", "https://localhost:8089/services/auth/login"]
       interval: 10s

@@ -95,7 +95,7 @@ public final class LocalGraphDbService {
     private void createSchema(Connection connection) throws Exception {
         try (Statement statement = connection.createStatement()) {
             statement.execute("CREATE TABLE IF NOT EXISTS ClassNode(id VARCHAR PRIMARY KEY, fqn VARCHAR, name VARCHAR, filePath VARCHAR)");
-            statement.execute("CREATE TABLE IF NOT EXISTS MethodNode(id VARCHAR PRIMARY KEY, classFqn VARCHAR, name VARCHAR, signature VARCHAR, filePath VARCHAR)");
+            statement.execute("CREATE TABLE IF NOT EXISTS MethodNode(id VARCHAR PRIMARY KEY, classFqn VARCHAR, name VARCHAR, signature VARCHAR, filePath VARCHAR, annotations VARCHAR, startLine INT, endLine INT)");
             statement.execute("CREATE TABLE IF NOT EXISTS Defines(classId VARCHAR, methodId VARCHAR)");
             statement.execute("CREATE TABLE IF NOT EXISTS Inherits(childId VARCHAR, parentId VARCHAR, relationType VARCHAR)");
             statement.execute("CREATE TABLE IF NOT EXISTS Calls(callerMethodId VARCHAR, calledMethodId VARCHAR)");
@@ -189,7 +189,7 @@ public final class LocalGraphDbService {
 
     private void insertMethods(Connection connection, List<GraphMethodNode> nodes) throws Exception {
         try (PreparedStatement prepared = connection.prepareStatement(
-                "MERGE INTO MethodNode(id, classFqn, name, signature, filePath) KEY(id) VALUES(?, ?, ?, ?, ?)"
+                "MERGE INTO MethodNode(id, classFqn, name, signature, filePath, annotations, startLine, endLine) KEY(id) VALUES(?, ?, ?, ?, ?, ?, ?, ?)"
         )) {
             for (GraphMethodNode node : nodes) {
                 prepared.setString(1, node.id());
@@ -197,6 +197,9 @@ public final class LocalGraphDbService {
                 prepared.setString(3, node.name());
                 prepared.setString(4, node.signature());
                 prepared.setString(5, node.filePath());
+                prepared.setString(6, node.annotations());
+                prepared.setInt(7, node.startLine());
+                prepared.setInt(8, node.endLine());
                 prepared.addBatch();
             }
             prepared.executeBatch();

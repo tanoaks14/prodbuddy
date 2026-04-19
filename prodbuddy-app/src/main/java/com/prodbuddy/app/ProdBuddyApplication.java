@@ -13,6 +13,9 @@ import com.prodbuddy.core.tool.ToolMetadata;
 import com.prodbuddy.core.tool.ToolRegistry;
 import com.prodbuddy.core.tool.ToolRequest;
 import com.prodbuddy.core.tool.ToolResponse;
+import com.prodbuddy.context.ContextCollector;
+import com.prodbuddy.context.ContextFormatter;
+import com.prodbuddy.context.ConversationContext;
 import com.prodbuddy.orchestrator.AgentLoopOrchestrator;
 import com.prodbuddy.orchestrator.LoopConfig;
 import com.prodbuddy.orchestrator.RuleBasedToolRouter;
@@ -20,6 +23,7 @@ import com.prodbuddy.orchestrator.RuleBasedToolRouter;
 public final class ProdBuddyApplication {
 
     public static void main(String[] args) {
+        System.setProperty("jdk.internal.httpclient.disableHostnameVerification", "true");
         ToolBootstrap bootstrap = new ToolBootstrap();
         ToolRegistry registry = bootstrap.createRegistry();
         AgentLoopOrchestrator orchestrator = new AgentLoopOrchestrator(
@@ -52,8 +56,11 @@ public final class ProdBuddyApplication {
         runLocalLlmIfEnabled(args, agentConfig, registry.metadata());
         ToolRequest request = new ToolRequest("pdf", "read", Map.of("path", "sample.pdf"));
         ToolContext context = new ToolContext(UUID.randomUUID().toString(), environment);
+        ConversationContext convCtx = new ConversationContext(context.requestId());
+        ContextCollector collector = new ContextCollector(orchestrator::run, convCtx);
         printSection("Sample Run");
-        System.out.println(orchestrator.run(request, context));
+        System.out.println(collector.execute(request, context));
+        writeContextFile("default-run-context.md", ContextFormatter.format(convCtx));
     }
 
     private static void runLocalLlmIfEnabled(String[] args, AgentConfig config, List<ToolMetadata> tools) {
@@ -113,17 +120,23 @@ public final class ProdBuddyApplication {
         promptForMissingCodeContextConfig(environment);
         printDebugContext(issue, environment);
         ToolContext context = new ToolContext(UUID.randomUUID().toString(), environment);
-        DebugIssueAgentLoop loop = new DebugIssueAgentLoop(orchestrator::run, new CliDebugProgressListener());
+        ConversationContext convCtx = new ConversationContext(context.requestId());
+        ContextCollector collector = new ContextCollector(orchestrator::run, convCtx);
+        DebugIssueAgentLoop loop = new DebugIssueAgentLoop(collector::execute, new CliDebugProgressListener());
         ToolResponse report = loop.run(issue, context);
         printDebugSummary(report);
-        runDebugReportLlm(issue, report, agentConfig, environment);
+        
+        String contextFilePath = "debug-issue-context.md";
+        writeContextFile(contextFilePath, ContextFormatter.format(convCtx));
+        runDebugReportLlm(issue, report, agentConfig, environment, contextFilePath);
     }
 
     private static void runDebugReportLlm(
             String issue,
             ToolResponse report,
             AgentConfig config,
-            Map<String, String> environment
+            Map<String, String> environment,
+            String contextFilePath
     ) {
         if (!config.enabled() || !"ollama".equalsIgnoreCase(config.provider())) {
             return;
@@ -133,7 +146,8 @@ public final class ProdBuddyApplication {
                 + "\nExecution context: " + debugExecutionContext(environment)
                 + "\nDebug report: " + reportSummary
                 + "\nUse this context for your follow-up response."
-                + "\nProvide likely root cause, confidence, and next 3 checks.";
+                + "\nProvide likely root cause, confidence, and next 3 checks."
+                + "\nNote: Tell the user they can see the exact tool payload request and responses inside the context file: " + contextFilePath;
         String response = new OllamaAgentClient().generate(prompt, config);
         printSection("Debug Assistant");
         System.out.println(TerminalMarkdownRenderer.toTerminalText(response));
@@ -264,6 +278,15 @@ public final class ProdBuddyApplication {
     private static void printSection(String title) {
         System.out.println();
         System.out.println("=== " + title + " ===");
+    }
+
+    private static void writeContextFile(String path, String data) {
+        try {
+            java.nio.file.Files.writeString(Path.of(path), data);
+            System.out.println("Detailed execution context saved to: " + path);
+        } catch (java.io.IOException e) {
+            System.err.println("Failed to write context file: " + e.getMessage());
+        }
     }
 
     private static Map<String, String> loadEnvironment() {
