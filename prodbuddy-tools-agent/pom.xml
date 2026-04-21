@@ -11,11 +11,15 @@
 
     <artifactId>prodbuddy-tools-agent</artifactId>
     <name>ProdBuddy Agent Tool</name>
-
     <dependencies>
         <dependency>
             <groupId>com.prodbuddy</groupId>
             <artifactId>prodbuddy-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.prodbuddy</groupId>
+            <artifactId>prodbuddy-recipes</artifactId>
             <version>${project.version}</version>
         </dependency>
     </dependencies>
