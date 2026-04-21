@@ -4,7 +4,7 @@ import java.util.Set;
 
 public final class SplunkOperationGuard {
 
-    private static final Set<String> ALLOWED_OPERATIONS = Set.of("search", "oneshot", "jobs", "results");
+    private static final Set<String> ALLOWED_OPERATIONS = Set.of("search", "oneshot", "jobs", "results", "login");
 
     public boolean isAllowed(String operation) {
         return ALLOWED_OPERATIONS.contains(operation.toLowerCase());

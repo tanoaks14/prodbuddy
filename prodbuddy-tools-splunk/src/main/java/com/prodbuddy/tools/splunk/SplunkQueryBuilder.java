@@ -95,7 +95,7 @@ public final class SplunkQueryBuilder {
         if (trimmed.isBlank()) {
             return "search index=_internal | head 10";
         }
-        return trimmed.startsWith("search ") ? trimmed : "search " + trimmed;
+        return (trimmed.startsWith("search ") || trimmed.startsWith("|")) ? trimmed : "search " + trimmed;
     }
 
     private void appendOptional(StringBuilder builder, String key, Object value) {

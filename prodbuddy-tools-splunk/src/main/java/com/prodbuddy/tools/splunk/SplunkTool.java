@@ -2,15 +2,12 @@ package com.prodbuddy.tools.splunk;
 
 import java.io.IOException;
 import java.net.URI;
-import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.prodbuddy.core.tool.Tool;
@@ -28,6 +25,7 @@ public final class SplunkTool implements Tool {
     private static final String MODE_USER = "user";
     private static final String MODE_SSO = "sso";
     private static final String MODE_SESSION = "session";
+    private static final String MODE_COOKIE = "cookie";
     private static final Pattern SESSION_KEY_JSON = Pattern.compile("\"sessionKey\"\\s*:\\s*\"([^\"]+)\"");
     private static final Pattern SESSION_KEY_XML = Pattern.compile("<sessionKey>([^<]+)</sessionKey>");
 
@@ -45,255 +43,160 @@ public final class SplunkTool implements Tool {
 
     @Override
     public ToolMetadata metadata() {
-        return new ToolMetadata(
-                NAME,
-                "Splunk read-only search tool",
-                Set.of("splunk.search", "splunk.oneshot", "splunk.jobs", "splunk.results")
-        );
+        return new ToolMetadata(NAME, "Splunk search tool", Set.of("splunk.search", "splunk.oneshot", "splunk.jobs", "splunk.results", "splunk.login"));
     }
 
     @Override
     public boolean supports(ToolRequest request) {
-        return "splunk".equalsIgnoreCase(request.intent());
+        return NAME.equalsIgnoreCase(request.intent());
     }
 
     @Override
     public ToolResponse execute(ToolRequest request, ToolContext context) {
-        seqLog.logSequence("AgentLoopOrchestrator", "splunk", "execute", "Executing Splunk " + request.operation());
-        String operation = request.operation().toLowerCase();
-        if (!guard.isAllowed(operation)) {
-            seqLog.logSequence("splunk", "AgentLoopOrchestrator", "execute", "Forbidden operation");
-            return ToolResponse.failure("SPLUNK_FORBIDDEN", "Only read/search operations are allowed");
-        }
+        String mode = resolveAuthMode(request, context);
+        String op = request.operation().toLowerCase();
+        if (!guard.isAllowed(op)) return ToolResponse.failure("SPLUNK_FORBIDDEN", "Forbidden operation");
 
         String baseUrl = context.env("SPLUNK_BASE_URL");
-        if (baseUrl == null || baseUrl.isBlank()) {
-            seqLog.logSequence("splunk", "AgentLoopOrchestrator", "execute", "Missing SPLUNK_BASE_URL");
-            return ToolResponse.failure("SPLUNK_CONFIG", "SPLUNK_BASE_URL is required");
+        if (baseUrl == null || baseUrl.isBlank()) return ToolResponse.failure("SPLUNK_CONFIG", "SPLUNK_BASE_URL is required");
+
+        if ("login".equals(op)) {
+            String cookie = loginAndBuildAuthValue(request, context, baseUrl, true);
+            String key = cookie.substring(cookie.indexOf('=') + 1);
+            return ToolResponse.ok(Map.of("sessionKey", key, "cookie", cookie, "status", 200));
         }
 
-        String authHeader;
+        String auth;
         try {
-            authHeader = resolveValidAuthHeaderOrThrow(request, context, baseUrl);
+            auth = resolveValidAuthHeaderOrThrow(request, context, baseUrl);
         } catch (Exception ex) {
-            return splunkExceptionFailure(ex, "operation=auth");
+            return SplunkToolHelper.exceptionFailure(ex, "operation=auth");
         }
 
         String search = queryBuilder.resolveSearch(request, context);
-        String path = queryBuilder.resolvePath(operation, request.payload());
-        String body = queryBuilder.buildBody(operation, request.payload(), search);
-        seqLog.logSequence("splunk", "SplunkAPI", "send", "Sending query: " + operation);
-        HttpRequest httpRequest = buildRequest(baseUrl, path, body, authHeader);
-        return send(httpRequest, operation, search, path, resolveAuthMode(request, context));
+        String path = queryBuilder.resolvePath(op, request.payload());
+        String body = queryBuilder.buildBody(op, request.payload(), search);
+
+        return send(buildRequest(baseUrl, path, body, auth, mode), op, search, path, mode);
     }
 
-    private String resolveValidAuthHeaderOrThrow(ToolRequest request, ToolContext context, String baseUrl) {
-        boolean authEnabled = resolveAuthEnabled(request, context);
-        String header = resolveAuthHeader(request, context, baseUrl, authEnabled);
-        if (authEnabled && header == null) {
-            throw new RuntimeException(credentialsMessage(request, context));
-        }
+    private String resolveValidAuthHeaderOrThrow(ToolRequest req, ToolContext ctx, String baseUrl) {
+        boolean enabled = resolveAuthEnabled(req, ctx);
+        String header = resolveAuthHeader(req, ctx, baseUrl, enabled);
+        if (enabled && header == null) throw new RuntimeException(credentialsMessage(req, ctx));
         return header;
     }
 
-    private ToolResponse send(HttpRequest request, String operation, String search, String path, String authMode) {
-        String attempted = "operation=" + operation + ", path=" + path + ", authMode=" + authMode + ", search=" + search;
+    private ToolResponse send(HttpRequest request, String op, String search, String path, String mode) {
+        String attempted = "op=" + op + ", path=" + path + ", mode=" + mode + ", search=" + search;
         try {
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() >= 400) {
-                seqLog.logSequence("SplunkAPI", "splunk", "send", "HTTP " + response.statusCode());
-                return splunkHttpFailure(response, attempted);
+            String body = response.body();
+            if (response.statusCode() >= 400 || body.contains("\"type\":\"ERROR\"") || body.contains("\"type\":\"FATAL\"")) {
+                return SplunkToolHelper.httpFailure(response, attempted);
             }
-            seqLog.logSequence("SplunkAPI", "splunk", "send", "Success: " + response.statusCode());
-            return ToolResponse.ok(Map.of(
-                    "status", response.statusCode(),
-                    "body", response.body(),
-                    "operation", operation,
-                    "search", search,
-                    "path", path,
-                    "authMode", authMode
-            ));
-        } catch (IOException ex) {
-            return splunkExceptionFailure(ex, attempted);
-        } catch (InterruptedException ex) {
-            Thread.currentThread().interrupt();
-            return splunkExceptionFailure(ex, attempted);
+            return ToolResponse.ok(Map.of("status", response.statusCode(), "body", body, "op", op, "mode", mode));
+        } catch (IOException | InterruptedException ex) {
+            if (ex instanceof InterruptedException) Thread.currentThread().interrupt();
+            return SplunkToolHelper.exceptionFailure(ex, attempted);
         }
     }
 
-    private ToolResponse splunkHttpFailure(HttpResponse<String> response, String attempted) {
-        return ToolResponse.failure(
-                "SPLUNK_QUERY_FAILED",
-                "Splunk returned HTTP " + response.statusCode() + ". attempted: " + attempted
-                + ". responseBody=" + truncateBody(response.body())
-        );
+    private String credentialsMessage(ToolRequest req, ToolContext ctx) {
+        String mode = resolveAuthMode(req, ctx);
+        return switch (mode) {
+            case MODE_USER -> "SPLUNK_USERNAME and SPLUNK_PASSWORD are required for user mode";
+            case MODE_SSO, MODE_SESSION -> "SPLUNK_SESSION_KEY is required for SSO mode";
+            case MODE_COOKIE -> "SPLUNK_AUTH_COOKIE (or credentials) required for cookie mode";
+            default -> "SPLUNK_TOKEN is required for token mode";
+        };
     }
 
-    private ToolResponse splunkExceptionFailure(Exception exception, String attempted) {
-        return ToolResponse.failure(
-                "SPLUNK_QUERY_FAILED",
-                messageFrom(exception) + ". attempted: " + attempted
-        );
+    private String resolveAuthHeader(ToolRequest req, ToolContext ctx, String baseUrl, boolean enabled) {
+        if (!enabled) return null;
+        String mode = resolveAuthMode(req, ctx);
+        return switch (mode) {
+            case MODE_USER -> loginAndBuildAuthValue(req, ctx, baseUrl, false);
+            case MODE_SSO, MODE_SESSION -> resolveSsoHeader(req, ctx);
+            case MODE_COOKIE -> resolveCookieHeader(req, ctx, baseUrl);
+            default -> resolveTokenHeader(req, ctx);
+        };
     }
 
-    private String messageFrom(Exception ex) {
-        String message = ex.getMessage();
-        if (message == null || message.isBlank()) {
-            return ex.getClass().getSimpleName();
-        }
-        return message;
+    private String resolveSsoHeader(ToolRequest req, ToolContext ctx) {
+        String key = resolveSessionKey(req, ctx);
+        return (key == null || key.isBlank()) ? null : "Splunk " + key;
     }
 
-    private String credentialsMessage(ToolRequest request, ToolContext context) {
-        String mode = resolveAuthMode(request, context);
-        if (MODE_USER.equals(mode)) {
-            return "SPLUNK_USERNAME and SPLUNK_PASSWORD are required for authMode=user";
-        }
-        if (MODE_SSO.equals(mode) || MODE_SESSION.equals(mode)) {
-            return "SPLUNK_SESSION_KEY is required for authMode=sso. Use your SSO login in Splunk, then provide a session key.";
-        }
-        return "SPLUNK_TOKEN is required for authMode=token";
+    private String resolveCookieHeader(ToolRequest req, ToolContext ctx, String baseUrl) {
+        String cookie = resolveCookie(req, ctx);
+        if (cookie != null && !cookie.isBlank()) return cookie;
+        return loginAndBuildAuthValue(req, ctx, baseUrl, true);
     }
 
-    private String resolveAuthHeader(
-            ToolRequest request,
-            ToolContext context,
-            String baseUrl,
-            boolean authEnabled
-    ) {
-        if (!authEnabled) {
-            return null;
-        }
+    private String resolveTokenHeader(ToolRequest req, ToolContext ctx) {
+        String token = resolveToken(req, ctx);
+        return (token == null || token.isBlank()) ? null : "Splunk " + token;
+    }
 
-        String mode = resolveAuthMode(request, context);
-        if (MODE_USER.equals(mode)) {
-            return loginAndBuildAuthHeader(request, context, baseUrl);
-        }
-        if (MODE_SSO.equals(mode) || MODE_SESSION.equals(mode)) {
-            String sessionKey = resolveSessionKey(request, context);
-            if (sessionKey == null || sessionKey.isBlank()) {
-                return null;
+    private String loginAndBuildAuthValue(ToolRequest req, ToolContext ctx, String baseUrl, boolean isCookie) {
+        String user = SplunkToolHelper.resolveCredential("username", "SPLUNK_USERNAME", req, ctx);
+        String pass = SplunkToolHelper.resolveCredential("password", "SPLUNK_PASSWORD", req, ctx);
+        if (user == null || user.isBlank() || pass == null || pass.isBlank()) return null;
+
+        HttpRequest loginReq = buildLoginRequest(baseUrl, user, pass);
+        try {
+            HttpResponse<String> response = client.send(loginReq, HttpResponse.BodyHandlers.ofString());
+            String key = SplunkToolHelper.extractSessionKey(response.body(), SESSION_KEY_JSON, SESSION_KEY_XML);
+            if (key == null || key.isBlank()) {
+                throw new RuntimeException("Splunk auth failed. HTTP " + response.statusCode() + ": " + response.body());
             }
-            return "Splunk " + sessionKey;
+            return isCookie ? "splunkd_" + SplunkToolHelper.extractPort(baseUrl) + "=" + key : "Splunk " + key;
+        } catch (IOException | InterruptedException ex) {
+            if (ex instanceof InterruptedException) Thread.currentThread().interrupt();
+            throw new RuntimeException("Splunk connectivity error: " + ex.getMessage(), ex);
         }
-
-        String token = resolveToken(request, context);
-        if (token == null || token.isBlank()) {
-            return null;
-        }
-        return "Splunk " + token;
     }
 
-    private String resolveAuthMode(ToolRequest request, ToolContext context) {
-        return String.valueOf(
-                request.payload().getOrDefault("authMode", context.envOrDefault("SPLUNK_AUTH_MODE", MODE_TOKEN))
-        ).toLowerCase();
-    }
-
-    private String resolveToken(ToolRequest request, ToolContext context) {
-        Object payloadToken = request.payload().get("token");
-        if (payloadToken != null && !String.valueOf(payloadToken).isBlank()) {
-            return String.valueOf(payloadToken);
-        }
-        return context.env("SPLUNK_TOKEN");
-    }
-
-    private String resolveSessionKey(ToolRequest request, ToolContext context) {
-        Object payloadSession = request.payload().get("sessionKey");
-        if (payloadSession != null && !String.valueOf(payloadSession).isBlank()) {
-            return String.valueOf(payloadSession);
-        }
-        return context.env("SPLUNK_SESSION_KEY");
-    }
-
-    private String loginAndBuildAuthHeader(ToolRequest request, ToolContext context, String baseUrl) {
-        String username = resolveCredential("username", "SPLUNK_USERNAME", request, context);
-        String password = resolveCredential("password", "SPLUNK_PASSWORD", request, context);
-        if (username == null || username.isBlank() || password == null || password.isBlank()) {
-            return null;
-        }
-
-        HttpRequest loginRequest = HttpRequest.newBuilder()
+    private HttpRequest buildLoginRequest(String baseUrl, String user, String pass) {
+        return HttpRequest.newBuilder()
                 .uri(URI.create(baseUrl + "/services/auth/login"))
                 .timeout(Duration.ofSeconds(20))
                 .header("Content-Type", "application/x-www-form-urlencoded")
-                .POST(HttpRequest.BodyPublishers.ofString(buildLoginBody(username, password)))
+                .POST(HttpRequest.BodyPublishers.ofString(SplunkToolHelper.buildLoginBody(user, pass)))
                 .build();
-
-        try {
-            HttpResponse<String> response = client.send(loginRequest, HttpResponse.BodyHandlers.ofString());
-            String sessionKey = extractSessionKey(response.body());
-            if (sessionKey == null || sessionKey.isBlank()) {
-                throw new RuntimeException("Splunk authentication failed. HTTP " + response.statusCode() + ": " + response.body());
-            }
-            return "Splunk " + sessionKey;
-        } catch (IOException ex) {
-            throw new RuntimeException("Splunk connectivity error: " + ex.getMessage(), ex);
-        } catch (InterruptedException ex) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException("Splunk auth interrupted", ex);
-        }
     }
 
-    private String resolveCredential(String payloadKey, String envKey, ToolRequest request, ToolContext context) {
-        Object payloadValue = request.payload().get(payloadKey);
-        if (payloadValue != null && !String.valueOf(payloadValue).isBlank()) {
-            return String.valueOf(payloadValue);
-        }
-        return context.env(envKey);
+    private String resolveAuthMode(ToolRequest req, ToolContext ctx) {
+        return String.valueOf(req.payload().getOrDefault("authMode", ctx.envOrDefault("SPLUNK_AUTH_MODE", MODE_TOKEN))).toLowerCase();
     }
 
-    private String buildLoginBody(String username, String password) {
-        return "username=" + URLEncoder.encode(username, StandardCharsets.UTF_8)
-                + "&password=" + URLEncoder.encode(password, StandardCharsets.UTF_8)
-                + "&output_mode=json";
+    private String resolveToken(ToolRequest req, ToolContext ctx) {
+        Object val = req.payload().get("token");
+        return (val != null && !String.valueOf(val).isBlank()) ? String.valueOf(val) : ctx.env("SPLUNK_TOKEN");
     }
 
-    private String extractSessionKey(String body) {
-        if (body == null || body.isBlank()) {
-            return null;
-        }
-
-        Matcher json = SESSION_KEY_JSON.matcher(body);
-        if (json.find()) {
-            return json.group(1);
-        }
-
-        Matcher xml = SESSION_KEY_XML.matcher(body);
-        if (xml.find()) {
-            return xml.group(1);
-        }
-
-        return null;
+    private String resolveCookie(ToolRequest req, ToolContext ctx) {
+        Object val = req.payload().get("cookie");
+        return (val != null && !String.valueOf(val).isBlank()) ? String.valueOf(val) : ctx.env("SPLUNK_AUTH_COOKIE");
     }
 
-    private boolean resolveAuthEnabled(ToolRequest request, ToolContext context) {
-        return Boolean.parseBoolean(
-                String.valueOf(request.payload().getOrDefault(
-                        "authEnabled",
-                        context.envOrDefault("SPLUNK_AUTH_ENABLED", "true")
-                ))
-        );
+    private String resolveSessionKey(ToolRequest req, ToolContext ctx) {
+        Object val = req.payload().get("sessionKey");
+        return (val != null && !String.valueOf(val).isBlank()) ? String.valueOf(val) : ctx.env("SPLUNK_SESSION_KEY");
     }
 
-    private HttpRequest buildRequest(String baseUrl, String path, String body, String authHeader) {
-        HttpRequest.Builder builder = HttpRequest.newBuilder()
-                .uri(URI.create(baseUrl + path))
-                .timeout(Duration.ofSeconds(20))
-                .header("Content-Type", "application/x-www-form-urlencoded")
-                .POST(HttpRequest.BodyPublishers.ofString(body));
-
-        if (authHeader != null && !authHeader.isBlank()) {
-            builder.header("Authorization", authHeader);
-        }
-
-        return builder.build();
+    private boolean resolveAuthEnabled(ToolRequest req, ToolContext ctx) {
+        return Boolean.parseBoolean(String.valueOf(req.payload().getOrDefault("authEnabled", ctx.envOrDefault("SPLUNK_AUTH_ENABLED", "true"))));
     }
 
-    private String truncateBody(String body) {
-        if (body == null || body.length() <= 600) {
-            return body;
+    private HttpRequest buildRequest(String base, String path, String body, String auth, String mode) {
+        HttpRequest.Builder b = HttpRequest.newBuilder().uri(URI.create(base + path)).timeout(Duration.ofSeconds(20))
+                .header("Content-Type", "application/x-www-form-urlencoded").POST(HttpRequest.BodyPublishers.ofString(body));
+        if (auth != null && !auth.isBlank()) {
+            if (MODE_COOKIE.equals(mode)) b.header("Cookie", auth);
+            else b.header("Authorization", auth);
         }
-        return body.substring(0, 600);
+        return b.build();
     }
 }
