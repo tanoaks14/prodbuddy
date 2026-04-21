@@ -34,6 +34,25 @@ public final class ToolBootstrap {
 
     public ToolRegistry createRegistry() {
         RuleBasedToolRouter router = new RuleBasedToolRouter();
+
+        // 1. Discover simple tools via SPI
+        ToolRegistry discovered = ToolRegistry.discover();
+        List<Tool> allTools = new ArrayList<>(discovered.all());
+
+        // 2. Manually wire complex tools
+        allTools.addAll(createManualTools());
+
+        // 3. System tool requires a circular ref to the registry
+        AtomicReference<ToolRegistry> registryRef = new AtomicReference<>();
+        Tool system = new SystemCatalogTool(registryRef::get, router);
+        allTools.add(system);
+
+        ToolRegistry finalRegistry = new ToolRegistry(allTools);
+        registryRef.set(finalRegistry);
+        return finalRegistry;
+    }
+
+    private List<Tool> createManualTools() {
         Tool pdf = new PdfTool(new LocalOpenDataLoaderPdfAdapter());
         Tool elasticsearch = new ElasticsearchTool(new ElasticsearchQueryBuilder());
         Tool newRelic = new NewRelicTool(new NewRelicScenarioCatalog());
@@ -46,18 +65,6 @@ public final class ToolBootstrap {
                 new JavaGraphExtractor(),
                 new LocalGraphDbService()
         );
-        Tool jsonTool = new JsonTool(new JsonAnalyzer());
-        Tool gitTool = new GitTool();
-        Tool agentTool = new AgentTool();
-
-        List<Tool> baseTools = new ArrayList<>(List.of(
-                pdf, elasticsearch, newRelic, splunk, http, kubectl, codeContext, jsonTool, gitTool, agentTool));
-        AtomicReference<ToolRegistry> registryRef = new AtomicReference<>(new ToolRegistry(baseTools));
-        Tool system = new SystemCatalogTool(registryRef::get, router);
-        baseTools.add(system);
-
-        ToolRegistry registry = new ToolRegistry(baseTools);
-        registryRef.set(registry);
-        return registry;
+        return List.of(pdf, elasticsearch, newRelic, splunk, http, kubectl, codeContext);
     }
 }

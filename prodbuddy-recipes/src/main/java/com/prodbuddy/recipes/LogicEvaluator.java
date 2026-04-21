@@ -9,7 +9,7 @@ import java.util.regex.Pattern;
  */
 public final class LogicEvaluator {
 
-    private static final Pattern COMPARISON = Pattern.compile("(.*?)\\s*(==|!=|contains)\\s*['\"]?(.*?)['\"]?\\s*$");
+    private static final Pattern COMPARISON = Pattern.compile("(.*?)\\s*(==|!=|contains|>=|<=|>|<)\\s*['\"]?(.*?)['\"]?\\s*$");
 
     public boolean evaluate(String expression) {
         if (expression == null || expression.isBlank()) {
@@ -25,18 +25,15 @@ public final class LogicEvaluator {
         if (trimmed.startsWith("!")) {
             return !evaluate(trimmed.substring(1));
         }
-        if ("true".equalsIgnoreCase(trimmed)) {
-            return true;
-        }
-        if ("false".equalsIgnoreCase(trimmed)) {
-            return false;
-        }
-        return handleComparison(trimmed);
+        return switch (trimmed.toLowerCase()) {
+            case "true" -> true;
+            case "false" -> false;
+            default -> handleComparison(trimmed);
+        };
     }
 
     private boolean handleOr(String trimmed) {
-        String[] parts = trimmed.split("\\|\\|");
-        for (String part : parts) {
+        for (String part : trimmed.split("\\|\\|")) {
             if (evaluate(part)) {
                 return true;
             }
@@ -45,8 +42,7 @@ public final class LogicEvaluator {
     }
 
     private boolean handleAnd(String trimmed) {
-        String[] parts = trimmed.split("&&");
-        for (String part : parts) {
+        for (String part : trimmed.split("&&")) {
             if (!evaluate(part)) {
                 return false;
             }
@@ -57,21 +53,38 @@ public final class LogicEvaluator {
     private boolean handleComparison(String trimmed) {
         Matcher m = COMPARISON.matcher(trimmed);
         if (m.find()) {
-            String left = m.group(1).trim();
+            String leftStr = m.group(1).trim();
             String op = m.group(2);
-            String right = m.group(3).trim();
+            String rightStr = m.group(3).trim();
 
-            return switch (op) {
-                case "==" ->
-                    left.equals(right);
-                case "!=" ->
-                    !left.equals(right);
-                case "contains" ->
-                    left.contains(right);
-                default ->
-                    false;
-            };
+            return executeOperator(leftStr, op, rightStr);
         }
         return !trimmed.isEmpty();
+    }
+
+    private boolean executeOperator(String left, String op, String right) {
+        return switch (op) {
+            case "==" -> left.equals(right);
+            case "!=" -> !left.equals(right);
+            case "contains" -> left.contains(right);
+            case ">", "<", ">=", "<=" -> compareNumeric(left, op, right);
+            default -> false;
+        };
+    }
+
+    private boolean compareNumeric(String left, String op, String right) {
+        try {
+            double l = Double.parseDouble(left);
+            double r = Double.parseDouble(right);
+            return switch (op) {
+                case ">" -> l > r;
+                case "<" -> l < r;
+                case ">=" -> l >= r;
+                case "<=" -> l <= r;
+                default -> false;
+            };
+        } catch (NumberFormatException e) {
+            return false;
+        }
     }
 }

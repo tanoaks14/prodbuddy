@@ -1,10 +1,12 @@
 package com.prodbuddy.core.tool;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.ServiceLoader;
 
 public final class ToolRegistry {
 
@@ -17,6 +19,18 @@ public final class ToolRegistry {
             toolsByName.put(tool.metadata().name(), tool);
         }
         this.seqLog = new com.prodbuddy.observation.Slf4jSequenceLogger(ToolRegistry.class);
+    }
+
+    /**
+     * Discovers tools via SPI (ToolProvider).
+     */
+    public static ToolRegistry discover() {
+        List<Tool> discovered = new ArrayList<>();
+        ServiceLoader<ToolProvider> loader = ServiceLoader.load(ToolProvider.class);
+        for (ToolProvider provider : loader) {
+            discovered.addAll(provider.getTools());
+        }
+        return new ToolRegistry(discovered);
     }
 
     public Optional<Tool> find(String toolName) {

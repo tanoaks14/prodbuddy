@@ -25,6 +25,10 @@ public final class RecipeVarResolver {
     private static final Pattern PLACEHOLDER = Pattern.compile("\\$\\{([^}]+)}");
 
     public String resolve(String value, ToolContext ctx, Map<String, ToolResponse> stepResults) {
+        return resolve(value, ctx, stepResults, Map.of());
+    }
+
+    public String resolve(String value, ToolContext ctx, Map<String, ToolResponse> stepResults, Map<String, Object> localVars) {
         if (value == null || !value.contains("${")) {
             return value;
         }
@@ -32,7 +36,7 @@ public final class RecipeVarResolver {
         StringBuilder sb = new StringBuilder();
         while (matcher.find()) {
             String key = matcher.group(1);
-            String resolved = resolveKey(key, ctx, stepResults);
+            String resolved = resolveKey(key, ctx, stepResults, localVars);
             matcher.appendReplacement(sb, Matcher.quoteReplacement(resolved));
         }
         matcher.appendTail(sb);
@@ -44,31 +48,55 @@ public final class RecipeVarResolver {
             ToolContext ctx,
             Map<String, ToolResponse> stepResults
     ) {
+        return resolveAll(rawParams, ctx, stepResults, Map.of());
+    }
+
+    public Map<String, Object> resolveAll(
+            Map<String, Object> rawParams,
+            ToolContext ctx,
+            Map<String, ToolResponse> stepResults,
+            Map<String, Object> localVars
+    ) {
         Map<String, Object> resolved = new LinkedHashMap<>();
         for (Map.Entry<String, Object> entry : rawParams.entrySet()) {
-            resolved.put(entry.getKey(), resolveRecursively(entry.getValue(), ctx, stepResults));
+            resolved.put(entry.getKey(), resolveRecursively(entry.getValue(), ctx, stepResults, localVars));
         }
         return resolved;
     }
 
-    private Object resolveRecursively(Object val, ToolContext ctx, Map<String, ToolResponse> stepResults) {
+    private Object resolveRecursively(Object val, ToolContext ctx, Map<String, ToolResponse> stepResults, Map<String, Object> localVars) {
         if (val instanceof String s) {
-            return resolve(s, ctx, stepResults);
+            return resolve(s, ctx, stepResults, localVars);
         }
         if (val instanceof Map<?, ?> map) {
             Map<String, Object> resolvedMap = new LinkedHashMap<>();
             for (Map.Entry<?, ?> entry : map.entrySet()) {
-                resolvedMap.put(String.valueOf(entry.getKey()), resolveRecursively(entry.getValue(), ctx, stepResults));
+                resolvedMap.put(String.valueOf(entry.getKey()), resolveRecursively(entry.getValue(), ctx, stepResults, localVars));
             }
             return resolvedMap;
         }
         return val;
     }
 
-    private String resolveKey(String key, ToolContext ctx, Map<String, ToolResponse> stepResults) {
+    private String resolveKey(String key, ToolContext ctx, Map<String, ToolResponse> stepResults, Map<String, Object> localVars) {
+        // 1. Check local scope first (loop variables)
+        if (localVars != null && localVars.containsKey(key)) {
+            return String.valueOf(localVars.get(key));
+        }
+
         int dot = key.indexOf('.');
         if (dot < 0) {
-            return ctx.envOrDefault(key, "${" + key + "}");
+            String val = ctx.envOrDefault(key, null);
+            if (val != null) {
+                return val;
+            }
+            // Smart Defaults for critical variables to prevent tool crashes
+            return switch (key) {
+                case "PRODBUDDY_PROJECT_PATH" -> ".";
+                case "DIAGNOSTIC_WINDOW" -> "60";
+                case "NEWRELIC_ACCOUNT_ID" -> "0";
+                default -> "${" + key + "}";
+            };
         }
         String stepName = key.substring(0, dot);
         String path = key.substring(dot + 1);

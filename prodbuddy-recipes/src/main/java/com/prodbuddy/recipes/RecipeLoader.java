@@ -93,7 +93,55 @@ public final class RecipeLoader {
         String tool = nvl((String) params.remove("tool"));
         String op = nvl((String) params.remove("operation"));
         String cond = nvl((String) params.remove("condition"));
-        return new RecipeStep(name, tool, op, cond, params);
+        String foreach = nvl((String) params.remove("foreach"));
+        String as = nvl((String) params.remove("as"));
+        boolean stopOnFailure = Boolean.parseBoolean(nvl((String) params.remove("stopOnFailure")));
+
+        List<RecipeStep> nestedSteps = List.of();
+        if (params.containsKey("steps")) {
+            nestedSteps = parseNestedSteps(params.remove("steps"));
+        }
+
+        return new RecipeStep(name, tool, op, cond, foreach, as, stopOnFailure, nestedSteps, params);
+    }
+
+    private List<RecipeStep> parseNestedSteps(Object raw) {
+        if (!(raw instanceof List<?> rawList)) {
+            return List.of();
+        }
+        List<RecipeStep> nested = new ArrayList<>();
+        for (Object item : rawList) {
+            if (item instanceof Map<?, ?> stepMap) {
+                nested.add(convertMapToStep((Map<String, Object>) stepMap));
+            }
+        }
+        return nested;
+    }
+
+    private RecipeStep convertMapToStep(Map<String, Object> map) {
+        String name = (String) map.getOrDefault("name", "anonymous");
+        String tool = (String) map.getOrDefault("tool", "");
+        String op = (String) map.getOrDefault("operation", "");
+        String cond = (String) map.getOrDefault("condition", "");
+        String foreach = (String) map.getOrDefault("foreach", "");
+        String as = (String) map.getOrDefault("as", "");
+        boolean stopOnFailure = Boolean.parseBoolean(String.valueOf(map.getOrDefault("stopOnFailure", "false")));
+
+        Map<String, Object> params = new LinkedHashMap<>(map);
+        params.remove("name");
+        params.remove("tool");
+        params.remove("operation");
+        params.remove("condition");
+        params.remove("foreach");
+        params.remove("as");
+        params.remove("stopOnFailure");
+
+        List<RecipeStep> nested = List.of();
+        if (params.containsKey("steps")) {
+            nested = parseNestedSteps(params.remove("steps"));
+        }
+
+        return new RecipeStep(name, tool, op, cond, foreach, as, stopOnFailure, nested, params);
     }
 
     private String processStepLine(String line, Map<String, Object> params, String currentKey, java.util.Set<String> blockKeys) {
@@ -126,21 +174,73 @@ public final class RecipeLoader {
         String stripped = line.stripLeading();
         int subSep = stripped.indexOf(':');
 
-        // Only parse as map if NOT a block and looks like "key: value" (no spaces in key)
+        // Case 1: Start of a nested step in a 'steps' list
+        if ("steps".equals(key)) {
+            handleNestedList(params, key, stripped);
+            return;
+        }
+
+        // Case 2: Standard nested key-value pair (Map)
         if (!isBlock && subSep > 0 && !stripped.substring(0, subSep).contains(" ")) {
-            Map<String, String> subMap;
-            if (existing instanceof Map) {
-                subMap = (Map<String, String>) existing;
-            } else {
-                subMap = new LinkedHashMap<>();
-                params.put(key, subMap);
-            }
-            String subKey = stripped.substring(0, subSep).trim();
-            String subVal = stripQuotes(stripped.substring(subSep + 1).trim());
-            subMap.put(subKey, subVal);
-        } else if (existing instanceof String s) {
+            handleNestedMap(existing, params, key, stripped, subSep);
+            return;
+        }
+
+        // Case 3: Block content or plain string
+        if (existing instanceof String s) {
             params.put(key, s + stripped + "\n");
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void handleNestedMap(Object existing, Map<String, Object> params, String key, String stripped, int subSep) {
+        Map<String, String> subMap;
+        if (existing instanceof Map) {
+            subMap = (Map<String, String>) existing;
+        } else {
+            subMap = new LinkedHashMap<>();
+            params.put(key, subMap);
+        }
+        String subKey = stripped.substring(0, subSep).trim();
+        String subVal = stripQuotes(stripped.substring(subSep + 1).trim());
+        subMap.put(subKey, subVal);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void handleNestedList(Map<String, Object> params, String key, String line) {
+        List<Map<String, Object>> list;
+        Object existing = params.get(key);
+        if (existing instanceof List) {
+            list = (List<Map<String, Object>>) existing;
+        } else {
+            list = new ArrayList<>();
+            params.put(key, list);
+        }
+
+        String stripped = line.stripLeading();
+        boolean isNewItem = stripped.startsWith("- ");
+        String itemContent = isNewItem ? stripped.substring(2).trim() : stripped;
+
+        int sep = itemContent.indexOf(':');
+        if (sep > 0) {
+            Map<String, Object> lastMap = initListItem(list, isNewItem, itemContent);
+            if (lastMap != null) {
+                String subKey = itemContent.substring(0, sep).trim();
+                String subVal = stripQuotes(itemContent.substring(sep + 1).trim());
+                lastMap.put(subKey, subVal);
+            }
+        }
+    }
+
+    private Map<String, Object> initListItem(List<Map<String, Object>> list, boolean isNewItem, String itemContent) {
+        if (isNewItem && itemContent.startsWith("name:")) {
+            Map<String, Object> newMap = new LinkedHashMap<>();
+            list.add(newMap);
+            return newMap;
+        } else if (!list.isEmpty()) {
+            return list.get(list.size() - 1);
+        }
+        return null;
     }
 
     private RecipeDefinition buildDefinition(Map<String, String> frontmatter, List<RecipeStep> steps, Path file) {

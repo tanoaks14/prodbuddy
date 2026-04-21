@@ -30,13 +30,19 @@ public final class RecipeRunner {
         List<RecipeStepResult> results = new ArrayList<>();
         for (RecipeStep step : recipe.steps()) {
             seqLog.logSequence("RecipeRunner", "Orchestrator", "runStep", "Step: " + step.name());
-            
-            if (!shouldRun(step, context, stepData)) {
+
+            if (!step.foreach().isEmpty()) {
+                boolean cont = executeLoop(step, context, executor, stepData, results);
+                if (!cont) break;
+                continue;
+            }
+
+            if (!shouldRun(step, context, stepData, Map.of())) {
                 seqLog.logSequence("RecipeRunner", "Orchestrator", "skipStep", "Skipping step " + step.name() + " due to condition");
                 continue;
             }
 
-            RecipeStepResult result = runStep(step, context, executor, stepData);
+            RecipeStepResult result = runStep(step, context, executor, stepData, Map.of());
             results.add(result);
             seqLog.logSequence("Orchestrator", "RecipeRunner", "runStep", "Result: " + result.response().success());
             stepData.put(step.name(), result.response());
@@ -49,22 +55,65 @@ public final class RecipeRunner {
             RecipeStep step,
             ToolContext context,
             RecipeToolExecutor executor,
-            Map<String, ToolResponse> stepData
+            Map<String, ToolResponse> stepData,
+            Map<String, Object> localVars
     ) {
-        Map<String, Object> resolved = resolver.resolveAll(step.rawParams(), context, stepData);
-        String tool = resolver.resolve(step.tool(), context, stepData);
-        String operation = resolver.resolve(step.operation(), context, stepData);
+        Map<String, Object> resolved = resolver.resolveAll(step.rawParams(), context, stepData, localVars);
+        String tool = resolver.resolve(step.tool(), context, stepData, localVars);
+        String operation = resolver.resolve(step.operation(), context, stepData, localVars);
         ToolRequest request = buildRequest(tool, operation, resolved);
         ToolResponse response = safeExecute(executor, request, context);
         return new RecipeStepResult(step.name(), tool, operation, resolved, response);
     }
 
-    private boolean shouldRun(RecipeStep step, ToolContext context, Map<String, ToolResponse> stepData) {
+    private boolean executeLoop(
+            RecipeStep loopStep,
+            ToolContext context,
+            RecipeToolExecutor executor,
+            Map<String, ToolResponse> stepData,
+            List<RecipeStepResult> results
+    ) {
+        String rawItems = resolver.resolve(loopStep.foreach(), context, stepData);
+        List<Object> items = parseList(rawItems);
+        String as = loopStep.as().isEmpty() ? "item" : loopStep.as();
+
+        int i = 0;
+        for (Object item : items) {
+            Map<String, Object> localVars = Map.of(as, item);
+            for (RecipeStep nested : loopStep.nestedSteps()) {
+                if (!shouldRun(nested, context, stepData, localVars)) continue;
+
+                RecipeStepResult res = runStep(nested, context, executor, stepData, localVars);
+                results.add(res);
+
+                // Index-based result aggregation for safety
+                String storageKey = nested.name() + "_" + i;
+                stepData.put(storageKey, res.response());
+
+                if (loopStep.stopOnFailure() && !res.response().success()) {
+                    seqLog.logSequence("RecipeRunner", "Orchestrator", "loopAbort", "Aborting loop " + loopStep.name() + " due to failure in " + nested.name());
+                    return false;
+                }
+            }
+            i++;
+        }
+        return true;
+    }
+
+    private List<Object> parseList(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return java.util.List.of();
+        }
+        // Support comma separated strings as a fallback for loops
+        return java.util.Arrays.asList((Object[]) raw.split(","));
+    }
+
+    private boolean shouldRun(RecipeStep step, ToolContext context, Map<String, ToolResponse> stepData, Map<String, Object> localVars) {
         String rawCondition = step.condition();
         if (rawCondition == null || rawCondition.isBlank()) {
             return true;
         }
-        String resolved = resolver.resolve(rawCondition, context, stepData);
+        String resolved = resolver.resolve(rawCondition, context, stepData, localVars);
         return evaluator.evaluate(resolved);
     }
 
