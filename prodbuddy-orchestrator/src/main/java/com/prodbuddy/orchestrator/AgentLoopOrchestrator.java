@@ -27,6 +27,10 @@ public final class AgentLoopOrchestrator {
         this.seqLog = new Slf4jSequenceLogger(AgentLoopOrchestrator.class);
     }
 
+    public ToolRegistry registry() {
+        return registry;
+    }
+
     public ToolResponse run(ToolRequest initialRequest, ToolContext context) {
         seqLog.logSequence("Client", "AgentLoopOrchestrator", "run", "Started Orchestration");
         Instant started = Instant.now();

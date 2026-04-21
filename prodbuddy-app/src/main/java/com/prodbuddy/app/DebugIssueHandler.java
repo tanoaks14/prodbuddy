@@ -34,7 +34,7 @@ public final class DebugIssueHandler {
         promptForMissingDebugConfig(environment);
         promptForMissingCodeContextConfig(environment);
         printDebugContext(issue, environment);
-        ToolContext context = new ToolContext(UUID.randomUUID().toString(), environment);
+        ToolContext context = new ToolContext(UUID.randomUUID().toString(), environment, orchestrator.registry());
         ConversationContext convCtx = new ConversationContext(context.requestId());
         ContextCollector collector = new ContextCollector(orchestrator::run, convCtx);
         DebugIssueAgentLoop loop = new DebugIssueAgentLoop(collector::execute, new CliDebugProgressListener());

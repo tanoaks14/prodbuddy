@@ -41,7 +41,8 @@ class SystemCatalogToolTest {
         ToolRouter router = request -> Optional.of("sample");
         SystemCatalogTool tool = new SystemCatalogTool(() -> registry, router);
 
-        ToolResponse response = tool.execute(new ToolRequest("system", "list_tools", Map.of()), new ToolContext("1", Map.of()));
+        ToolContext context = new ToolContext("req-1", Map.of("ENV", "test"), registry);
+        ToolResponse response = tool.execute(new ToolRequest("system", "list_tools", Map.of()), context);
         Assertions.assertTrue(response.success());
     }
 }

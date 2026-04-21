@@ -87,10 +87,18 @@ final class RecipeCliHandler {
             System.out.println("Recipe not found: " + name + " (dir=" + dir + ")");
             return;
         }
-        ToolContext context = new ToolContext(UUID.randomUUID().toString(), env);
+        ToolContext context = new ToolContext(UUID.randomUUID().toString(), env, orchestrator.registry());
         ConversationContext convCtx = new ConversationContext(context.requestId());
         ContextCollector collector = new ContextCollector(orchestrator::run, convCtx);
-        RecipeRunResult result = new RecipeRunner().run(recipe, context, collector);
+        
+        String fullContent = "";
+        try {
+            fullContent = java.nio.file.Files.readString(Path.of(dir, name + ".md"));
+        } catch (Exception e) {
+            seqLog.logSequence("RecipeCliHandler", "FileSystem", "readRecipe", "Could not read raw recipe for system context: " + e.getMessage());
+        }
+
+        RecipeRunResult result = new RecipeRunner().run(recipe, fullContent, context, collector);
         printRecipeSteps(result);
         Map<String, Object> summary = RecipeReport.summarize(result);
         printRecipeSummary(summary);

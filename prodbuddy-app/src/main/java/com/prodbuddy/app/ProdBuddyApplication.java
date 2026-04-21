@@ -63,7 +63,7 @@ public final class ProdBuddyApplication {
         System.out.println("Registered tools: " + registry.metadata().size());
         runLocalLlmIfEnabled(args, agentConfig, registry.metadata());
         ToolRequest request = new ToolRequest("pdf", "read", Map.of("path", "sample.pdf"));
-        ToolContext context = new ToolContext(UUID.randomUUID().toString(), environment);
+        ToolContext context = new ToolContext(UUID.randomUUID().toString(), environment, registry);
         ConversationContext convCtx = new ConversationContext(context.requestId());
         ContextCollector collector = new ContextCollector(orchestrator::run, convCtx);
         printSection("Sample Run");

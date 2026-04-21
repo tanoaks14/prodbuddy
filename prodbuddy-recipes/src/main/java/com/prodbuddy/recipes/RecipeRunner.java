@@ -24,7 +24,7 @@ public final class RecipeRunner {
     private final LogicEvaluator evaluator = new LogicEvaluator();
     private final SequenceLogger seqLog = new Slf4jSequenceLogger(RecipeRunner.class);
 
-    public RecipeRunResult run(RecipeDefinition recipe, ToolContext context, RecipeToolExecutor executor) {
+    public RecipeRunResult run(RecipeDefinition recipe, String fullRecipeContent, ToolContext context, RecipeToolExecutor executor) {
         seqLog.logSequence("RecipeCliHandler", "RecipeRunner", "run", "Running recipe: " + recipe.name());
         Map<String, ToolResponse> stepData = new LinkedHashMap<>();
         List<RecipeStepResult> results = new ArrayList<>();
@@ -32,7 +32,7 @@ public final class RecipeRunner {
             seqLog.logSequence("RecipeRunner", "Orchestrator", "runStep", "Step: " + step.name());
 
             if (!step.foreach().isEmpty()) {
-                boolean cont = executeLoop(step, context, executor, stepData, results);
+                boolean cont = executeLoop(step, fullRecipeContent, context, executor, stepData, results);
                 if (!cont) break;
                 continue;
             }
@@ -42,7 +42,7 @@ public final class RecipeRunner {
                 continue;
             }
 
-            RecipeStepResult result = runStep(step, context, executor, stepData, Map.of());
+            RecipeStepResult result = runStep(step, context, executor, stepData, Map.of(), fullRecipeContent);
             results.add(result);
             seqLog.logSequence("Orchestrator", "RecipeRunner", "runStep", "Result: " + result.response().success());
             stepData.put(step.name(), result.response());
@@ -56,11 +56,16 @@ public final class RecipeRunner {
             ToolContext context,
             RecipeToolExecutor executor,
             Map<String, ToolResponse> stepData,
-            Map<String, Object> localVars
+            Map<String, Object> localVars,
+            String fullRecipeContent
     ) {
-        Map<String, Object> resolved = resolver.resolveAll(step.rawParams(), context, stepData, localVars);
-        String tool = resolver.resolve(step.tool(), context, stepData, localVars);
-        String operation = resolver.resolve(step.operation(), context, stepData, localVars);
+        Map<String, Object> mutableLocal = new java.util.HashMap<>(localVars);
+        mutableLocal.put("system.current_recipe", fullRecipeContent);
+        mutableLocal.put("system.current_step_name", step.name());
+
+        Map<String, Object> resolved = resolver.resolveAll(step.rawParams(), context, stepData, mutableLocal);
+        String tool = resolver.resolve(step.tool(), context, stepData, mutableLocal);
+        String operation = resolver.resolve(step.operation(), context, stepData, mutableLocal);
         ToolRequest request = buildRequest(tool, operation, resolved);
         ToolResponse response = safeExecute(executor, request, context);
         return new RecipeStepResult(step.name(), tool, operation, resolved, response);
@@ -68,6 +73,7 @@ public final class RecipeRunner {
 
     private boolean executeLoop(
             RecipeStep loopStep,
+            String fullRecipeContent,
             ToolContext context,
             RecipeToolExecutor executor,
             Map<String, ToolResponse> stepData,
@@ -83,7 +89,7 @@ public final class RecipeRunner {
             for (RecipeStep nested : loopStep.nestedSteps()) {
                 if (!shouldRun(nested, context, stepData, localVars)) continue;
 
-                RecipeStepResult res = runStep(nested, context, executor, stepData, localVars);
+                RecipeStepResult res = runStep(nested, context, executor, stepData, localVars, fullRecipeContent);
                 results.add(res);
 
                 // Index-based result aggregation for safety

@@ -38,9 +38,9 @@ public final class ElasticsearchTool implements Tool {
     @Override
     public ToolMetadata metadata() {
         return new ToolMetadata(NAME, "Elasticsearch tool",
-                Set.of("elastic.analyze", "elastic.query",
-                        "elastic.search", "elastic.count",
-                        "elastic.request"));
+                Set.of("elasticsearch.analyze", "elasticsearch.query",
+                        "elasticsearch.search", "elasticsearch.count",
+                        "elasticsearch.request"));
     }
 
     @Override

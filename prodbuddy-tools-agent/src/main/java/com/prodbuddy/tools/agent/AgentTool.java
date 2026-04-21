@@ -9,6 +9,7 @@ import com.prodbuddy.core.tool.ToolRequest;
 import com.prodbuddy.core.tool.ToolResponse;
 
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Tool for intermediate agent reasoning and analysis within recipes.
@@ -22,7 +23,7 @@ public final class AgentTool implements Tool {
         return new ToolMetadata(
                 "agent",
                 "Advanced reasoning and analysis tool powered by LLM.",
-                java.util.Set.of("think", "generate_recipe")
+                Set.of("agent.generate_recipe", "agent.validate_recipe", "agent.think")
         );
     }
 
@@ -36,6 +37,7 @@ public final class AgentTool implements Tool {
         return switch (request.operation()) {
             case "think" -> handleThink(request, context);
             case "generate_recipe" -> handleGenerateRecipe(request, context);
+            case "validate_recipe" -> handleValidateRecipe(request, context);
             default -> ToolResponse.failure("UNKNOWN_OPERATION", "Operation not supported: " + request.operation());
         };
     }
@@ -73,6 +75,82 @@ public final class AgentTool implements Tool {
         } catch (Exception e) {
             return ToolResponse.failure("GENERATION_FAILED", "Recipe invalid or failed: " + e.getMessage());
         }
+    }
+
+    private ToolResponse handleValidateRecipe(ToolRequest request, ToolContext context) {
+        String recipeContent = String.valueOf(request.payload().getOrDefault("recipe", ""));
+        if (recipeContent.isBlank()) return ToolResponse.failure("MISSING_CONTENT", "Recipe content is required.");
+
+        java.util.List<String> errors = new java.util.ArrayList<>();
+        try {
+            java.nio.file.Path temp = java.nio.file.Files.createTempFile("recipe-val", ".md");
+            try {
+                java.nio.file.Files.writeString(temp, recipeContent);
+                com.prodbuddy.recipes.RecipeLoader loader = new com.prodbuddy.recipes.RecipeLoader();
+                com.prodbuddy.recipes.RecipeDefinition def = loader.load(temp);
+                
+                checkSemanticValidity(def, errors, context);
+                checkReferenceValidity(def, errors);
+            } finally {
+                java.nio.file.Files.deleteIfExists(temp);
+            }
+        } catch (Exception e) {
+            errors.add("Syntax Error: " + e.getMessage());
+        }
+
+        return ToolResponse.ok(java.util.Map.of(
+                "valid", errors.isEmpty(),
+                "errors", errors,
+                "status", errors.isEmpty() ? "valid" : "invalid"
+        ));
+    }
+
+    private void checkSemanticValidity(com.prodbuddy.recipes.RecipeDefinition def, java.util.List<String> errors, ToolContext context) {
+        Map<String, Set<String>> toolMap = new java.util.HashMap<>();
+        if (context.registry() != null) {
+            context.registry().metadata().forEach(m -> toolMap.put(m.name(), m.capabilities()));
+        } else {
+            // Fallback to discovery if context has no registry (e.g. tests)
+            com.prodbuddy.core.tool.ToolRegistry.discover().metadata().forEach(m -> toolMap.put(m.name(), m.capabilities()));
+        }
+
+        for (com.prodbuddy.recipes.RecipeStep step : def.steps()) {
+            if (!toolMap.containsKey(step.tool())) {
+                errors.add("Step '" + step.name() + "': Unknown tool '" + step.tool() + "'");
+                continue;
+            }
+            if (!toolMap.get(step.tool()).contains(step.tool() + "." + step.operation())) {
+                errors.add("Step '" + step.name() + "': Tool '" + step.tool() + "' has no operation '" + step.operation() + "'");
+            }
+        }
+    }
+
+    private void checkReferenceValidity(com.prodbuddy.recipes.RecipeDefinition def, java.util.List<String> errors) {
+        java.util.Set<String> validSteps = new java.util.HashSet<>();
+        java.util.regex.Pattern p = java.util.regex.Pattern.compile("\\$\\{([a-zA-Z0-9._-]+)\\}");
+
+        for (com.prodbuddy.recipes.RecipeStep step : def.steps()) {
+            String stepStr = step.toString(); // Simple way to scan all fields
+            java.util.regex.Matcher m = p.matcher(stepStr);
+            while (m.find()) {
+                String ref = m.group(1);
+                if (ref.startsWith("system.")) {
+                    continue;
+                }
+                if (ref.contains(".")) {
+                    String stepRef = ref.split("\\.")[0];
+                    if (!validSteps.contains(stepRef) && !isGlobalVar(stepRef)) {
+                        errors.add("Step '" + step.name() + "': Reference to unknown or future step '" + stepRef + "'");
+                    }
+                }
+            }
+            validSteps.add(step.name());
+        }
+    }
+
+    private boolean isGlobalVar(String var) {
+        // Basic list of known global context vars (can be expanded)
+        return java.util.Set.of("USER", "PASSWORD", "URL", "ENV").contains(var);
     }
 
     private void validateRecipe(String content) throws Exception {

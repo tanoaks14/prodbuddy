@@ -28,7 +28,7 @@ class JavaCodeContextToolTest {
                 new LocalGraphDbService()
         );
         ToolRequest request = new ToolRequest("code", "summary", Map.of("projectPath", temp.toString()));
-        ToolResponse response = tool.execute(request, new ToolContext("1", Map.of()));
+        ToolResponse response = tool.execute(request, new ToolContext("1", Map.of(), null));
 
         Assertions.assertTrue(response.success());
         Assertions.assertEquals(Boolean.TRUE, response.data().get("exists"));
@@ -52,7 +52,7 @@ class JavaCodeContextToolTest {
                 "build_graph_db",
                 Map.of("projectPath", temp.toString(), "dbPath", dbPath.toString())
         );
-        ToolResponse buildResponse = tool.execute(build, new ToolContext("1", Map.of()));
+        ToolResponse buildResponse = tool.execute(build, new ToolContext("1", Map.of(), null));
         Assertions.assertTrue(buildResponse.success());
 
         ToolRequest query = new ToolRequest(
@@ -60,7 +60,7 @@ class JavaCodeContextToolTest {
                 "query_graph",
                 Map.of("dbPath", dbPath.toString(), "sql", "SELECT COUNT(*) AS cnt FROM ClassNode")
         );
-        ToolResponse queryResponse = tool.execute(query, new ToolContext("2", Map.of()));
+        ToolResponse queryResponse = tool.execute(query, new ToolContext("2", Map.of(), null));
         Assertions.assertTrue(queryResponse.success());
     }
 
@@ -73,11 +73,11 @@ class JavaCodeContextToolTest {
 
         ToolResponse firstResponse = tool.execute(
                 new ToolRequest("codecontext", "refresh_graph_db", Map.of("projectPath", temp.toString(), "dbPath", dbPath.toString())),
-                new ToolContext("3", Map.of())
+                new ToolContext("3", Map.of(), null)
         );
         ToolResponse secondResponse = tool.execute(
                 new ToolRequest("codecontext", "refresh_graph_db", Map.of("projectPath", temp.toString(), "dbPath", dbPath.toString())),
-                new ToolContext("4", Map.of())
+                new ToolContext("4", Map.of(), null)
         );
 
         Assertions.assertTrue(firstResponse.success());
@@ -145,7 +145,7 @@ class JavaCodeContextToolTest {
 
         ToolResponse buildResponse = tool.execute(
                 new ToolRequest("codecontext", "build_graph_db", Map.of("projectPath", temp.toString(), "dbPath", dbPath.toString())),
-                new ToolContext("9", Map.of())
+                new ToolContext("9", Map.of(), null)
         );
         Assertions.assertTrue(buildResponse.success());
 
@@ -155,7 +155,7 @@ class JavaCodeContextToolTest {
                         "dbPath", dbPath.toString(),
                         "query", "payment timeout exception in order flow"
                 )),
-                new ToolContext("10", Map.of("CODE_CONTEXT_MAX_RESULTS", "5"))
+                new ToolContext("10", Map.of("CODE_CONTEXT_MAX_RESULTS", "5"), null)
         );
 
         Assertions.assertTrue(queryResponse.success());
@@ -171,7 +171,7 @@ class JavaCodeContextToolTest {
         Path temp = createSmallRealProject();
         ToolResponse response = newTool().execute(
                 new ToolRequest("codecontext", "context_from_query", Map.of("projectPath", temp.toString())),
-                new ToolContext("11", Map.of())
+                new ToolContext("11", Map.of(), null)
         );
 
         Assertions.assertTrue(response.success());
@@ -186,7 +186,7 @@ class JavaCodeContextToolTest {
 
         ToolResponse buildResponse = tool.execute(
                 new ToolRequest("codecontext", "build_graph_db", Map.of("projectPath", temp.toString(), "dbPath", dbPath.toString())),
-                new ToolContext("12", Map.of())
+                new ToolContext("12", Map.of(), null)
         );
         Assertions.assertTrue(buildResponse.success());
 
@@ -196,7 +196,7 @@ class JavaCodeContextToolTest {
                         "dbPath", dbPath.toString(),
                         "query", "payment timeout 5xx"
                 )),
-                new ToolContext("13", Map.of("CODE_CONTEXT_MAX_RESULTS", "5"))
+                new ToolContext("13", Map.of("CODE_CONTEXT_MAX_RESULTS", "5"), null)
         );
 
         Assertions.assertTrue(report.success());
@@ -220,7 +220,7 @@ class JavaCodeContextToolTest {
                 "search",
                 Map.of("projectPath", projectPath.toString(), "query", query)
         );
-        return newTool().execute(request, new ToolContext(requestId, Map.of("CODE_CONTEXT_MAX_RESULTS", maxResults)));
+        return newTool().execute(request, new ToolContext(requestId, Map.of("CODE_CONTEXT_MAX_RESULTS", maxResults), null));
     }
 
     private boolean containsMatch(List<?> matches, String fileName, String snippetText) {

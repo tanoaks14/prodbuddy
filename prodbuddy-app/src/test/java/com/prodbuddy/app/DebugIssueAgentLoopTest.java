@@ -15,7 +15,7 @@ class DebugIssueAgentLoopTest {
     void shouldReturnHealthyWhenAllStepsSucceed() {
         DebugIssueAgentLoop loop = new DebugIssueAgentLoop((request, context) -> ToolResponse.ok(Map.of("ok", true)));
 
-        ToolResponse response = loop.run("payment timeout", new ToolContext("req-1", Map.of()));
+        ToolResponse response = loop.run("payment timeout", new ToolContext("req-1", Map.of(), null));
 
         Assertions.assertTrue(response.success());
         Assertions.assertEquals("healthy", response.data().get("status"));
@@ -27,7 +27,7 @@ class DebugIssueAgentLoopTest {
     void shouldContinueCollectingWhenSomeStepsFail() {
         DebugIssueAgentLoop loop = new DebugIssueAgentLoop(DebugIssueAgentLoopTest::executeWithOneFailure);
 
-        ToolResponse response = loop.run("payment timeout", new ToolContext("req-2", Map.of()));
+        ToolResponse response = loop.run("payment timeout", new ToolContext("req-2", Map.of(), null));
 
         Assertions.assertTrue(response.success());
         Assertions.assertEquals("attention_required", response.data().get("status"));
