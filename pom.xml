@@ -26,6 +26,7 @@
         <module>prodbuddy-app</module>
         <module>prodbuddy-tools-json</module>
         <module>prodbuddy-tools-git</module>
+        <module>prodbuddy-tools-agent</module>
     </modules>
 
     <properties>
@@ -133,4 +134,17 @@
             </plugin>
         </plugins>
     </build>
+    <profiles>
+        <profile>
+            <id>incidence-test</id>
+            <modules>
+                <module>test-env/demo-app</module>
+            </modules>
+            <properties>
+                <PRODBUDDY_SPLUNK_HEC_URL>http://localhost:8088</PRODBUDDY_SPLUNK_HEC_URL>
+                <PRODBUDDY_SPLUNK_HEC_TOKEN>prodbuddy-local-hec-token</PRODBUDDY_SPLUNK_HEC_TOKEN>
+                <PRODBUDDY_SPLUNK_HEC_ENABLED>true</PRODBUDDY_SPLUNK_HEC_ENABLED>
+            </properties>
+        </profile>
+    </profiles>
 </project>

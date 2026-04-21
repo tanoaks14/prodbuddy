@@ -22,3 +22,4 @@ Thumbs.db
 
 # Prodbuddy specific
 .prodbuddy/
+test-env/

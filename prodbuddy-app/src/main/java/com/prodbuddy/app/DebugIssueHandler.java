@@ -24,7 +24,7 @@ public final class DebugIssueHandler {
             String[] args,
             AgentLoopOrchestrator orchestrator,
             Map<String, String> environment,
-            AgentConfig agentConfig
+            com.prodbuddy.core.agent.AgentConfig agentConfig
     ) {
         String issue = String.join(" ", Arrays.copyOfRange(args, 1, args.length)).trim();
         if (issue.isBlank()) {
@@ -140,10 +140,10 @@ public final class DebugIssueHandler {
         );
     }
 
-    private static void runDebugReportLlm(String issue, ToolResponse report, AgentConfig config, Map<String, String> environment, String path) {
+    private static void runDebugReportLlm(String issue, ToolResponse report, com.prodbuddy.core.agent.AgentConfig config, Map<String, String> environment, String path) {
         if (!config.enabled() || !"ollama".equalsIgnoreCase(config.provider())) return;
         String prompt = "Issue: " + issue + "\nDebug report: " + summarizeReport(report) + "\nContext file: " + path;
-        String response = new OllamaAgentClient().generate(prompt, config);
+        String response = new com.prodbuddy.core.agent.OllamaAgentClient().generate(prompt, config);
         System.out.println("\n=== Debug Assistant ===\n" + TerminalMarkdownRenderer.toTerminalText(response));
     }
 

@@ -31,7 +31,7 @@ public final class ProdBuddyApplication {
                 registry, new RuleBasedToolRouter(), LoopConfig.defaults()
         );
         Map<String, String> environment = loadEnvironment();
-        AgentConfig agentConfig = AgentConfig.from(environment);
+        com.prodbuddy.core.agent.AgentConfig agentConfig = com.prodbuddy.core.agent.AgentConfig.from(environment);
         if (isRecipeMode(effectiveArgs)) {
             RecipeCliHandler.handle(effectiveArgs, orchestrator, environment, agentConfig);
             return;
@@ -55,7 +55,7 @@ public final class ProdBuddyApplication {
             String[] args,
             AgentLoopOrchestrator orchestrator,
             Map<String, String> environment,
-            AgentConfig agentConfig,
+            com.prodbuddy.core.agent.AgentConfig agentConfig,
             ToolRegistry registry
     ) {
         printSection("Runtime");
@@ -71,13 +71,13 @@ public final class ProdBuddyApplication {
         writeContextFile("default-run-context.md", ContextFormatter.format(convCtx));
     }
 
-    private static void runLocalLlmIfEnabled(String[] args, AgentConfig config, List<ToolMetadata> tools) {
+    private static void runLocalLlmIfEnabled(String[] args, com.prodbuddy.core.agent.AgentConfig config, List<ToolMetadata> tools) {
         if (!config.enabled() || !"ollama".equalsIgnoreCase(config.provider())) {
             return;
         }
         String userPrompt = args.length > 0 ? String.join(" ", args) : "Summarize available tools in one paragraph.";
         String prompt = buildToolAwarePrompt(userPrompt, tools);
-        String response = new OllamaAgentClient().generate(prompt, config);
+        String response = new com.prodbuddy.core.agent.OllamaAgentClient().generate(prompt, config);
         printSection("Local Assistant");
         System.out.println(TerminalMarkdownRenderer.toTerminalText(response));
     }
@@ -117,7 +117,7 @@ public final class ProdBuddyApplication {
             String[] args,
             AgentLoopOrchestrator orchestrator,
             Map<String, String> environment,
-            AgentConfig agentConfig
+            com.prodbuddy.core.agent.AgentConfig agentConfig
     ) {
         DebugIssueHandler.handle(args, orchestrator, environment, agentConfig);
     }

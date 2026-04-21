@@ -68,6 +68,9 @@ public final class RuleBasedToolRouter implements ToolRouter {
         if (intent.contains("json") || intent.contains("parse")) {
             return Optional.of("json");
         }
+        if (intent.contains("agent") || intent.contains("think")) {
+            return Optional.of("agent");
+        }
         return Optional.empty();
     }
 

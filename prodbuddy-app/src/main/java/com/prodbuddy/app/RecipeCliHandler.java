@@ -19,6 +19,8 @@ import com.prodbuddy.recipes.RecipeReport;
 import com.prodbuddy.recipes.RecipeRunResult;
 import com.prodbuddy.recipes.RecipeRunner;
 import com.prodbuddy.recipes.RecipeStepResult;
+import com.prodbuddy.recipes.RecipeStepSummarizer;
+import com.prodbuddy.core.tool.ToolResponse;
 import com.prodbuddy.observation.SequenceLogger;
 import com.prodbuddy.observation.Slf4jSequenceLogger;
 
@@ -37,7 +39,7 @@ final class RecipeCliHandler {
             String[] args,
             AgentLoopOrchestrator orchestrator,
             Map<String, String> environment,
-            AgentConfig agentConfig
+            com.prodbuddy.core.agent.AgentConfig agentConfig
     ) {
         String mode = args[0].toLowerCase();
         switch (mode) {
@@ -71,7 +73,7 @@ final class RecipeCliHandler {
             String[] args,
             AgentLoopOrchestrator orchestrator,
             Map<String, String> environment,
-            AgentConfig agentConfig
+            com.prodbuddy.core.agent.AgentConfig agentConfig
     ) {
         if (args.length < 2) {
             System.out.println("Usage: --run-recipe <name> [--vars KEY=VALUE ...]");
@@ -115,7 +117,7 @@ final class RecipeCliHandler {
 
     private static void runRecipeLlm(
             String name, Map<String, Object> summary,
-            ConversationContext convCtx, AgentConfig config
+            ConversationContext convCtx, com.prodbuddy.core.agent.AgentConfig config
     ) {
         if (!config.enabled() || !"ollama".equalsIgnoreCase(config.provider())) {
             seqLog.logSequence("RecipeCliHandler", "LLM", "runRecipeLlm", "Skipping LLM (Disabled)");
@@ -139,7 +141,7 @@ final class RecipeCliHandler {
                 + "3. Diagnose root causes for any failures\n"
                 + "4. Recommend next steps or follow-up checks\n"
                 + "Note: For actual exact outputs/responses, tell the user they can refer to the detailed context file: " + contextFilePath;
-        String response = new OllamaAgentClient().generate(prompt, config);
+        String response = new com.prodbuddy.core.agent.OllamaAgentClient().generate(prompt, config);
         seqLog.logSequence("LLM", "RecipeCliHandler", "runRecipeLlm", "Received Analysis");
         System.out.println("\n=== AI Analysis ===");
         System.out.println(TerminalMarkdownRenderer.toTerminalText(response));
@@ -188,29 +190,10 @@ final class RecipeCliHandler {
     }
 
     private static String summarizeSuccess(Map<String, Object> data) {
-        if (data == null || data.isEmpty()) {
-            return "Completed with no payload.";
-        }
-        Object status = data.get("status");
-        if (status != null) {
-            return "status=" + status;
-        }
-        Object results = data.get("results");
-        if (results instanceof List<?> list) {
-            return "results=" + list.size();
-        }
-        Object matches = data.get("matches");
-        if (matches instanceof List<?> list) {
-            return "matches=" + list.size();
-        }
-        return "fields=" + new ArrayList<>(data.keySet());
+        return RecipeStepSummarizer.summarize(ToolResponse.ok(data));
     }
 
     private static String summarizeErrors(List<ToolError> errors) {
-        if (errors == null || errors.isEmpty()) {
-            return "No error details available.";
-        }
-        ToolError first = errors.get(0);
-        return first.code() + ": " + first.message();
+        return RecipeStepSummarizer.summarize(new ToolResponse(false, Map.of(), errors));
     }
 }

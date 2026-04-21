@@ -106,6 +106,45 @@ mvn -q -f prodbuddy-app/pom.xml exec:java -Dexec.args="--run-recipe payment-time
 Template for broad scenario coverage is available at `recipes/recipe-template-all-scenarios.md`.
 Copy it, keep only the steps you need, and set variables through `--vars` or `.env`.
 
+## Automated Incident Diagnosis Sandbox [New]
+
+A self-contained Dockerized environment for end-to-end testing of the `incident-diagnosis` recipe.
+
+### 1. Setup & Requirements
+- **Docker & Docker Compose** installed.
+- **New Relic Account**: You need a License Key (for data ingestion) and a User API Key (for queries).
+- Follow the [New Relic Setup Guide](docs/new-relic-setup.md) to get your keys.
+
+### 2. Configuration
+Create a `.env` file in the `test-env/` directory (use `.env.test.example` as a template) and provide your NR/Splunk credentials.
+
+### 3. Running the Sandbox
+The sandbox includes:
+- **Splunk**: Local log search service.
+- **Ollama**: Local AI reasoning engine.
+- **DemoApp**: A Java service that sends data to NR and logs to Splunk.
+
+**One-Click Start and Analysis:**
+```powershell
+cd test-env
+.\run-test.ps1
+```
+
+**What happens?**
+1. Services start in Docker.
+2. `Ollama` pulls the `gemma4:e4b` model.
+3. `DemoApp` is called to trigger a 500 error (`/incident`).
+4. The system waits 90s for New Relic aggregation.
+5. The `incident-diagnosis` recipe is executed automatically.
+
+### 4. Direct Recipe Execution
+You can also run the diagnosis manually against the sandbox:
+```powershell
+mvn -pl prodbuddy-app exec:java "-Dexec.args=--run-recipe incident-diagnosis"
+```
+Detailed results are saved to `incident-diagnosis-context.md`.
+
+
 ## Environment Variables
 
 - `ELASTICSEARCH_BASE_URL`

@@ -20,40 +20,39 @@ public final class NrqlGraphQLClient {
 
     public ToolResponse execute(String nrql, ToolContext context) {
         String accountId = context.env("NEWRELIC_ACCOUNT_ID");
+        if (accountId == null || accountId.isBlank()) {
+            return ToolResponse.failure("NEWRELIC_CONFIG", "NEWRELIC_ACCOUNT_ID is required for NRQL queries");
+        }
+        String query = "{\"query\":\"{ actor { account(id: " + accountId + ") { nrql(query: \\\""
+                + escape(nrql) + "\\\") { results } } } }\"}";
+        return query(query, context);
+    }
+
+    public ToolResponse query(String graphqlBody, ToolContext context) {
         String apiKey = context.env("NEWRELIC_USER_API_KEY");
-        if (invalidConfig(accountId, apiKey)) {
-            return ToolResponse.failure("NEWRELIC_CONFIG", "NEWRELIC_ACCOUNT_ID and NEWRELIC_USER_API_KEY are required");
+        if (apiKey == null || apiKey.isBlank()) {
+            return ToolResponse.failure("NEWRELIC_CONFIG", "NEWRELIC_USER_API_KEY is required");
         }
 
         String url = context.envOrDefault("NEWRELIC_GRAPHQL_URL", "https://api.newrelic.com/graphql");
-        String body = graphqlBody(accountId, nrql);
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(url))
                 .timeout(Duration.ofSeconds(20))
                 .header("Content-Type", "application/json")
                 .header("API-Key", apiKey)
-                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .POST(HttpRequest.BodyPublishers.ofString(graphqlBody))
                 .build();
-        return send(request, nrql);
-    }
-
-    private boolean invalidConfig(String accountId, String apiKey) {
-        return accountId == null || apiKey == null || accountId.isBlank() || apiKey.isBlank();
-    }
-
-    private String graphqlBody(String accountId, String nrql) {
-        return "{\"query\":\"{ actor { account(id: " + accountId + ") { nrql(query: \\\""
-                + escape(nrql) + "\\\") { results } } } }\"}";
+        return send(request, graphqlBody);
     }
 
     private String escape(String text) {
         return text.replace("\"", "\\\\\"");
     }
 
-    private ToolResponse send(HttpRequest request, String nrql) {
+    private ToolResponse send(HttpRequest request, String query) {
         try {
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-            return ToolResponse.ok(Map.of("status", response.statusCode(), "body", response.body(), "nrql", nrql));
+            return ToolResponse.ok(Map.of("status", response.statusCode(), "body", response.body(), "query", query));
         } catch (Exception exception) {
             return ToolResponse.failure("NEWRELIC_QUERY_FAILED", exception.getMessage());
         }

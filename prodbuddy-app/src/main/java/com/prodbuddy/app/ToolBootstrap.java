@@ -1,5 +1,10 @@
 package com.prodbuddy.app;
 
+import com.prodbuddy.tools.splunk.SplunkTool;
+import com.prodbuddy.tools.agent.AgentTool;
+import com.prodbuddy.tools.json.JsonTool;
+import com.prodbuddy.tools.json.JsonAnalyzer;
+import com.prodbuddy.tools.git.GitTool;
 import com.prodbuddy.core.system.SystemCatalogTool;
 import com.prodbuddy.core.tool.Tool;
 import com.prodbuddy.core.tool.ToolRegistry;
@@ -20,7 +25,6 @@ import com.prodbuddy.tools.newrelic.NewRelicTool;
 import com.prodbuddy.tools.pdf.LocalOpenDataLoaderPdfAdapter;
 import com.prodbuddy.tools.pdf.PdfTool;
 import com.prodbuddy.tools.splunk.SplunkOperationGuard;
-import com.prodbuddy.tools.splunk.SplunkTool;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -42,10 +46,12 @@ public final class ToolBootstrap {
                 new JavaGraphExtractor(),
                 new LocalGraphDbService()
         );
-        Tool jsonTool = new com.prodbuddy.tools.json.JsonTool(new com.prodbuddy.tools.json.JsonAnalyzer());
-        Tool gitTool = new com.prodbuddy.tools.git.GitTool();
+        Tool jsonTool = new JsonTool(new JsonAnalyzer());
+        Tool gitTool = new GitTool();
+        Tool agentTool = new AgentTool();
 
-        List<Tool> baseTools = new ArrayList<>(List.of(pdf, elasticsearch, newRelic, splunk, http, kubectl, codeContext, jsonTool, gitTool));
+        List<Tool> baseTools = new ArrayList<>(List.of(
+                pdf, elasticsearch, newRelic, splunk, http, kubectl, codeContext, jsonTool, gitTool, agentTool));
         AtomicReference<ToolRegistry> registryRef = new AtomicReference<>(new ToolRegistry(baseTools));
         Tool system = new SystemCatalogTool(registryRef::get, router);
         baseTools.add(system);

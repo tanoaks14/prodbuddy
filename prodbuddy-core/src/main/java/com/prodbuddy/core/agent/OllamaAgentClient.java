@@ -1,4 +1,4 @@
-package com.prodbuddy.app;
+package com.prodbuddy.core.agent;
 
 import java.io.IOException;
 import java.net.URI;
@@ -30,7 +30,7 @@ public final class OllamaAgentClient {
                 + ",\"think\":" + thinking + "}";
         HttpRequest.Builder builder = HttpRequest.newBuilder()
                 .uri(URI.create(config.baseUrl() + config.chatPath()))
-                .timeout(Duration.ofSeconds(30))
+                .timeout(Duration.ofSeconds(60))
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(body));
         if (config.authEnabled() && !config.apiKey().isBlank()) {

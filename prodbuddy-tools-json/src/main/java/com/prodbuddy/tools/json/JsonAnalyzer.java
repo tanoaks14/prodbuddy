@@ -40,6 +40,41 @@ public final class JsonAnalyzer {
         }
     }
 
+    public Map<String, Object> extract(String jsonStr, Map<String, String> paths, Map<String, String> regexList) {
+        Map<String, Object> results = new java.util.HashMap<>();
+        try {
+            JsonNode root = mapper.readTree(jsonStr);
+            if (paths != null) {
+                for (Map.Entry<String, String> entry : paths.entrySet()) {
+                    JsonNode node = walk(root, entry.getValue());
+                    if (node != null && !node.isMissingNode()) {
+                        results.put(entry.getKey(), node.isContainerNode() ? node.toString() : node.asText());
+                    }
+                }
+            }
+            if (regexList != null) {
+                extractRegex(jsonStr, regexList, results);
+            }
+        } catch (JsonProcessingException e) {
+            // partly filled
+        }
+        return results;
+    }
+
+    private void extractRegex(String content, Map<String, String> regexList, Map<String, Object> results) {
+        for (Map.Entry<String, String> entry : regexList.entrySet()) {
+            java.util.regex.Pattern p = java.util.regex.Pattern.compile(entry.getValue());
+            java.util.regex.Matcher m = p.matcher(content);
+            List<String> matches = new ArrayList<>();
+            while (m.find()) {
+                matches.add(m.groupCount() > 0 ? m.group(1) : m.group());
+            }
+            if (!matches.isEmpty()) {
+                results.put(entry.getKey(), String.join(",", matches));
+            }
+        }
+    }
+
     private void traverse(JsonNode node, String currentPath, String targetKey, List<String> result) {
         if (node.isObject()) {
             Iterator<Map.Entry<String, JsonNode>> fields = node.fields();

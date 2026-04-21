@@ -1,4 +1,4 @@
-package com.prodbuddy.app;
+package com.prodbuddy.core.agent;
 
 import java.util.Map;
 

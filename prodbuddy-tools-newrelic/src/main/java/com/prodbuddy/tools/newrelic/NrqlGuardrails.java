@@ -22,7 +22,7 @@ public final class NrqlGuardrails {
     }
 
     public static NrqlGuardrails defaults() {
-        return new NrqlGuardrails(24 * 60, 10_000, 5);
+        return new NrqlGuardrails(30 * 24 * 60, 10_000, 5);
     }
 
     public boolean isMetricAllowed(String metric) {

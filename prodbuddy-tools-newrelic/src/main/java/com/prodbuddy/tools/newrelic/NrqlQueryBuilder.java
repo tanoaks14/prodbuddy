@@ -11,6 +11,7 @@ public final class NrqlQueryBuilder {
         nrql.append(selectForMetric(request.metric()));
         nrql.append(" FROM ").append(eventForMetric(request.metric()));
         appendFilters(nrql, request.filters());
+        nrql.append(" TIMESERIES");
         nrql.append(" SINCE ").append(request.timeWindowMinutes()).append(" minutes ago");
         appendGroupBy(nrql, request.groupBy());
         nrql.append(" LIMIT ").append(request.limit());

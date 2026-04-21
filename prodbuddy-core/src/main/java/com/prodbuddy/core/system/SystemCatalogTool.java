@@ -2,6 +2,7 @@ package com.prodbuddy.core.system;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Scanner;
 import java.util.Set;
 import java.util.function.Supplier;
 
@@ -33,7 +34,7 @@ public final class SystemCatalogTool implements Tool {
         return new ToolMetadata(
                 NAME,
                 "System catalog and agent config tool",
-                Set.of("system.list_tools", "system.tool_details", "system.agent_config", "system.tool_compatibility")
+                Set.of("system.list_tools", "system.tool_details", "system.agent_config", "system.tool_compatibility", "system.ask")
         );
     }
 
@@ -55,8 +56,10 @@ public final class SystemCatalogTool implements Tool {
                 agentConfig(context);
             case "tool_compatibility" ->
                 compatibility(request.payload());
+            case "ask" ->
+                ask(request.payload());
             default ->
-                ToolResponse.failure("SYSTEM_OPERATION", "supported operations: list_tools, tool_details, agent_config, tool_compatibility");
+                ToolResponse.failure("SYSTEM_OPERATION", "supported operations: list_tools, tool_details, agent_config, tool_compatibility, ask");
         };
     }
 
@@ -91,6 +94,18 @@ public final class SystemCatalogTool implements Tool {
     private ToolResponse compatibility(Map<String, Object> payload) {
         String intent = String.valueOf(payload.getOrDefault("intent", ""));
         return ToolResponse.ok(Map.of("intent", intent, "routedTool", router.route(new ToolRequest(intent, "query", Map.of()))));
+    }
+
+    private ToolResponse ask(Map<String, Object> payload) {
+        String question = String.valueOf(payload.getOrDefault("question", "Please provide input:"));
+        System.out.println("\n[PRODBUDDY INTERACTIVE] " + question);
+        System.out.print("> ");
+        Scanner scanner = new Scanner(System.in);
+        if (scanner.hasNextLine()) {
+            String answer = scanner.nextLine();
+            return ToolResponse.ok(Map.of("answer", answer));
+        }
+        return ToolResponse.failure("SYSTEM_ASK_FAILED", "No input received");
     }
 
     private List<String> requiredEnv(String toolName) {

@@ -42,7 +42,7 @@ public final class NewRelicTool implements Tool {
         return new ToolMetadata(
                 NAME,
                 "New Relic data tool",
-                Set.of("newrelic.scenario", "newrelic.query", "newrelic.query_metrics", "newrelic.validate")
+                Set.of("newrelic.scenario", "newrelic.query", "newrelic.query_metrics", "newrelic.validate", "newrelic.list_dashboards", "newrelic.get_dashboard", "newrelic.list_apps", "newrelic.list_external_services", "newrelic.get_trace", "newrelic.gql_query")
         );
     }
 
@@ -54,24 +54,87 @@ public final class NewRelicTool implements Tool {
     @Override
     public ToolResponse execute(ToolRequest request, ToolContext context) {
         seqLog.logSequence("AgentLoopOrchestrator", "newrelic", "execute", "Executing NewRelic " + request.operation());
+        try {
+            return dispatch(request, context);
+        } catch (Exception ex) {
+            seqLog.logSequence("newrelic", "AgentLoopOrchestrator", "execute", "Failed: " + ex.getMessage());
+            return ToolResponse.failure("NEWRELIC_SAFE_CATCH", "Unexpected error in New Relic tool: " + ex.getMessage());
+        }
+    }
+
+    private ToolResponse dispatch(ToolRequest request, ToolContext context) {
         String operation = request.operation().toLowerCase();
-        if ("scenarios".equals(operation)) {
-            seqLog.logSequence("newrelic", "AgentLoopOrchestrator", "execute", "Listing scenarios");
-            return ToolResponse.ok(Map.of("scenarios", catalog.supported(), "preferredOperation", "query_metrics"));
-        }
+        return switch (operation) {
+            case "scenarios" -> listScenarios();
+            case "validate" -> validate(request);
+            case "query_metrics", "query" -> runQuery(requestFrom(request), context);
+            case "list_dashboards" -> listDashboards(dashboardRequestFrom(request), context);
+            case "get_dashboard" -> getDashboard(dashboardRequestFrom(request), context);
+            case "list_apps" -> listApplications(request, context);
+            case "list_external_services" -> listExternalServices(request, context);
+            case "get_trace" -> getTrace(traceRequestFrom(request), context);
+            case "gql_query" -> client.query(String.valueOf(request.payload().getOrDefault("graphqlBody", "")), context);
+            default -> ToolResponse.failure("NEWRELIC_OPERATION", "supported ops: scenarios, query, list_dashboards, get_dashboard, get_trace, etc.");
+        };
+    }
 
-        NrqlQueryRequest queryRequest = requestFrom(request);
-        if ("validate".equals(operation)) {
-            ToolResponse validation = validator.validate(queryRequest);
-            seqLog.logSequence("newrelic", "AgentLoopOrchestrator", "execute", "Validated query");
-            return validation == null ? ToolResponse.ok(Map.of("valid", true)) : validation;
-        }
+    private ToolResponse validate(ToolRequest request) {
+        NrqlQueryRequest qr = requestFrom(request);
+        ToolResponse v = validator.validate(qr);
+        return v == null ? ToolResponse.ok(Map.of("valid", true)) : v;
+    }
 
-        if ("query_metrics".equals(operation) || "query".equals(operation)) {
-            return runQuery(queryRequest, context);
-        }
+    private ToolResponse listScenarios() {
+        seqLog.logSequence("newrelic", "AgentLoopOrchestrator", "execute", "Listing scenarios");
+        return ToolResponse.ok(Map.of("scenarios", catalog.supported(), "preferredOperation", "query_metrics"));
+    }
 
-        return ToolResponse.failure("NEWRELIC_OPERATION", "supported operations: scenarios, query_metrics, query, validate");
+    private ToolResponse listDashboards(DashboardRequest request, ToolContext context) {
+        String query = "{ actor { entitySearch(query: \\\"type = 'DASHBOARD'"
+                + (request.name().isBlank() ? "" : " AND name LIKE '%" + request.name() + "%'")
+                + "\\\") { results { entities { guid name } } } } }";
+        return client.query("{\"query\":\"" + query + "\"}", context);
+    }
+
+    private ToolResponse getDashboard(DashboardRequest request, ToolContext context) {
+        if (request.guid().isBlank()) {
+            return ToolResponse.failure("NEWRELIC_DASHBOARD_GUID", "guid is required for get_dashboard");
+        }
+        String query = "{ actor { entity(guid: \\\"" + request.guid() + "\\\") { name ... on DashboardEntity { pages { name widgets { title visualization { id } rawConfiguration } } } } } }";
+        return client.query("{\"query\":\"" + query + "\"}", context);
+    }
+
+    private ToolResponse listApplications(ToolRequest request, ToolContext context) {
+        String name = String.valueOf(request.payload().getOrDefault("name", ""));
+        String query = "{ actor { entitySearch(query: \\\"type = 'APPLICATION' "
+                + (name.isBlank() ? "" : "AND name LIKE '%" + name + "%' ")
+                + "\\\") { results { entities { guid name } } } } }";
+        return client.query("{\"query\":\"" + query + "\"}", context);
+    }
+
+    private ToolResponse listExternalServices(ToolRequest request, ToolContext context) {
+        String accountId = String.valueOf(request.payload().getOrDefault("accountId", context.envOrDefault("NEWRELIC_ACCOUNT_ID", "")));
+        String querySnippet = accountId.isBlank() ? "type = 'EXT'" : "type = 'EXT' AND accountId = " + accountId;
+        String query = "{ actor { entitySearch(query: \\\"" + querySnippet + "\\\") { results { entities { guid name } } } } }";
+        return client.query("{\"query\":\"" + query + "\"}", context);
+    }
+
+    private ToolResponse getTrace(TraceRequest request, ToolContext context) {
+        if (request.traceId().isBlank()) {
+            return ToolResponse.failure("NEWRELIC_TRACE_ID", "traceId is required for get_trace");
+        }
+        String query = "{ actor { distributedTracing { trace(id: \\\"" + request.traceId() + "\\\") { spans { id parentSpanId serviceName operationName durationMs timestamp } } } } }";
+        return client.query("{\"query\":\"" + query + "\"}", context);
+    }
+
+    private TraceRequest traceRequestFrom(ToolRequest request) {
+        return new TraceRequest(String.valueOf(request.payload().getOrDefault("traceId", "")));
+    }
+
+    private DashboardRequest dashboardRequestFrom(ToolRequest request) {
+        String guid = String.valueOf(request.payload().getOrDefault("guid", ""));
+        String name = String.valueOf(request.payload().getOrDefault("name", ""));
+        return new DashboardRequest(guid, name);
     }
 
     private ToolResponse runQuery(NrqlQueryRequest queryRequest, ToolContext context) {

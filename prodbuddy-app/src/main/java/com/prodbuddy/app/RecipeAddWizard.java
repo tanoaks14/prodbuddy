@@ -62,12 +62,13 @@ public final class RecipeAddWizard {
         String name = ConsoleInput.readLine("  Step name: ");
         String tool = ConsoleInput.readLine("  Tool (http/splunk/elasticsearch/kubectl/newrelic): ");
         String operation = ConsoleInput.readLine("  Operation: ");
-        Map<String, String> params = promptParams();
-        return new RecipeStep(name, tool, operation, params);
+        String condition = ConsoleInput.readLine("  Condition (optional): ");
+        Map<String, Object> params = promptParams();
+        return new RecipeStep(name, tool, operation, condition, params);
     }
 
-    private Map<String, String> promptParams() {
-        Map<String, String> params = new LinkedHashMap<>();
+    private Map<String, Object> promptParams() {
+        Map<String, Object> params = new LinkedHashMap<>();
         System.out.println("  Enter params (key: value). Leave key blank to finish.");
         while (true) {
             String key = ConsoleInput.readLine("    key: ");
@@ -113,7 +114,10 @@ public final class RecipeAddWizard {
         sb.append("## ").append(step.name()).append("\n");
         sb.append("tool: ").append(step.tool()).append("\n");
         sb.append("operation: ").append(step.operation()).append("\n");
-        for (Map.Entry<String, String> entry : step.rawParams().entrySet()) {
+        if (step.condition() != null && !step.condition().isBlank()) {
+            sb.append("condition: ").append(step.condition()).append("\n");
+        }
+        for (Map.Entry<String, Object> entry : step.rawParams().entrySet()) {
             sb.append(entry.getKey()).append(": ").append(entry.getValue()).append("\n");
         }
         sb.append("\n");

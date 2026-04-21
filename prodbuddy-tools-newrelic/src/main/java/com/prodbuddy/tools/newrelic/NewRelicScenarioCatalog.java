@@ -7,11 +7,11 @@ public final class NewRelicScenarioCatalog {
     public String queryFor(String scenario) {
         return switch (scenario) {
             case "errors" ->
-                "SELECT count(*) FROM TransactionError TIMESERIES 1 minute";
+                "SELECT count(*) FROM TransactionError TIMESERIES";
             case "latency" ->
-                "SELECT average(duration) FROM Transaction TIMESERIES 1 minute";
+                "SELECT average(duration) FROM Transaction TIMESERIES";
             case "throughput" ->
-                "SELECT rate(count(*), 1 minute) FROM Transaction TIMESERIES 1 minute";
+                "SELECT rate(count(*), 1 minute) FROM Transaction TIMESERIES";
             default ->
                 "SELECT count(*) FROM Transaction TIMESERIES 1 minute";
         };

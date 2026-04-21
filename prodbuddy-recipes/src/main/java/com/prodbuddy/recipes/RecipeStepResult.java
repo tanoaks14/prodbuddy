@@ -9,7 +9,7 @@ public record RecipeStepResult(
         String stepName,
         String tool,
         String operation,
-        Map<String, String> resolvedParams,
+        Map<String, Object> resolvedParams,
         ToolResponse response
         ) {
 

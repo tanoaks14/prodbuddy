@@ -24,7 +24,7 @@ public final class JsonTool implements Tool {
 
     @Override
     public ToolMetadata metadata() {
-        return new ToolMetadata(NAME, "JSON analysis tool", Set.of("json.assert", "json.search"));
+        return new ToolMetadata(NAME, "JSON analysis tool", Set.of("json.assert", "json.search", "json.extract"));
     }
 
     @Override
@@ -46,6 +46,10 @@ public final class JsonTool implements Tool {
 
         if ("search".equalsIgnoreCase(request.operation())) {
             return runSearch(data, request.payload());
+        }
+
+        if ("extract".equalsIgnoreCase(request.operation())) {
+            return runExtract(data, request.payload());
         }
 
         return ToolResponse.failure("JSON_UNSUPPORTED_OP", "supported ops: assert, search");
@@ -71,5 +75,13 @@ public final class JsonTool implements Tool {
             "count", paths.size(),
             "paths", paths
         ));
+    }
+
+    private ToolResponse runExtract(String data, Map<String, Object> req) {
+        Map<String, String> paths = (Map<String, String>) req.get("paths");
+        Map<String, String> regex = (Map<String, String>) req.get("regex");
+        seqLog.logSequence(NAME, "JsonAnalyzer", "extract", "Extracting values from JSON");
+        Map<String, Object> results = analyzer.extract(data, paths, regex);
+        return ToolResponse.ok(results);
     }
 }

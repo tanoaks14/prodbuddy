@@ -21,6 +21,7 @@ import com.prodbuddy.observation.Slf4jSequenceLogger;
 public final class RecipeRunner {
 
     private final RecipeVarResolver resolver = new RecipeVarResolver();
+    private final LogicEvaluator evaluator = new LogicEvaluator();
     private final SequenceLogger seqLog = new Slf4jSequenceLogger(RecipeRunner.class);
 
     public RecipeRunResult run(RecipeDefinition recipe, ToolContext context, RecipeToolExecutor executor) {
@@ -29,12 +30,16 @@ public final class RecipeRunner {
         List<RecipeStepResult> results = new ArrayList<>();
         for (RecipeStep step : recipe.steps()) {
             seqLog.logSequence("RecipeRunner", "Orchestrator", "runStep", "Step: " + step.name());
+            
+            if (!shouldRun(step, context, stepData)) {
+                seqLog.logSequence("RecipeRunner", "Orchestrator", "skipStep", "Skipping step " + step.name() + " due to condition");
+                continue;
+            }
+
             RecipeStepResult result = runStep(step, context, executor, stepData);
             results.add(result);
             seqLog.logSequence("Orchestrator", "RecipeRunner", "runStep", "Result: " + result.response().success());
-            if (result.response().success()) {
-                stepData.put(step.name(), result.response());
-            }
+            stepData.put(step.name(), result.response());
         }
         seqLog.logSequence("RecipeRunner", "RecipeCliHandler", "run", "Recipe complete: " + results.size() + " steps");
         return new RecipeRunResult(recipe.name(), results);
@@ -46,7 +51,7 @@ public final class RecipeRunner {
             RecipeToolExecutor executor,
             Map<String, ToolResponse> stepData
     ) {
-        Map<String, String> resolved = resolver.resolveAll(step.rawParams(), context, stepData);
+        Map<String, Object> resolved = resolver.resolveAll(step.rawParams(), context, stepData);
         String tool = resolver.resolve(step.tool(), context, stepData);
         String operation = resolver.resolve(step.operation(), context, stepData);
         ToolRequest request = buildRequest(tool, operation, resolved);
@@ -54,7 +59,16 @@ public final class RecipeRunner {
         return new RecipeStepResult(step.name(), tool, operation, resolved, response);
     }
 
-    private ToolRequest buildRequest(String tool, String operation, Map<String, String> params) {
+    private boolean shouldRun(RecipeStep step, ToolContext context, Map<String, ToolResponse> stepData) {
+        String rawCondition = step.condition();
+        if (rawCondition == null || rawCondition.isBlank()) {
+            return true;
+        }
+        String resolved = resolver.resolve(rawCondition, context, stepData);
+        return evaluator.evaluate(resolved);
+    }
+
+    private ToolRequest buildRequest(String tool, String operation, Map<String, Object> params) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.putAll(params);
         return new ToolRequest(tool, operation, payload);

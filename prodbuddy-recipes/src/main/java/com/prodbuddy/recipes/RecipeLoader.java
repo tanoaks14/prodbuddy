@@ -71,8 +71,8 @@ public final class RecipeLoader {
                 }
                 currentStepName = line.substring(STEP_HEADING_PREFIX.length()).trim();
                 currentParams = new ArrayList<>();
-            } else if (currentStepName != null && line.contains(KV_SEPARATOR)) {
-                currentParams.add(line.trim());
+            } else if (currentStepName != null && !line.isBlank()) {
+                currentParams.add(line);
             }
         }
         if (currentStepName != null) {
@@ -82,19 +82,65 @@ public final class RecipeLoader {
     }
 
     private RecipeStep buildStep(String name, List<String> paramLines) {
-        Map<String, String> params = new LinkedHashMap<>();
+        Map<String, Object> params = new LinkedHashMap<>();
+        java.util.Set<String> blockKeys = new java.util.HashSet<>();
+        String currentKey = null;
+
         for (String line : paramLines) {
-            int sep = line.indexOf(KV_SEPARATOR);
-            if (sep < 0) {
-                continue;
-            }
-            String key = line.substring(0, sep).trim();
-            String value = line.substring(sep + KV_SEPARATOR.length()).trim();
-            params.put(key, value);
+            currentKey = processStepLine(line, params, currentKey, blockKeys);
         }
-        String tool = params.remove("tool");
-        String operation = params.remove("operation");
-        return new RecipeStep(name, nvl(tool), nvl(operation), params);
+
+        String tool = nvl((String) params.remove("tool"));
+        String op = nvl((String) params.remove("operation"));
+        String cond = nvl((String) params.remove("condition"));
+        return new RecipeStep(name, tool, op, cond, params);
+    }
+
+    private String processStepLine(String line, Map<String, Object> params, String currentKey, java.util.Set<String> blockKeys) {
+        boolean isIndented = line.startsWith("  ") || line.startsWith("\t");
+        int sep = line.indexOf(':');
+
+        if (sep >= 0 && !isIndented) {
+            String key = line.substring(0, sep).trim();
+            String val = line.substring(sep + 1).trim();
+            val = stripQuotes(val);
+            boolean isBlock = "|".equals(val) || ">".equals(val);
+            params.put(key, isBlock ? "" : val);
+            if (isBlock) blockKeys.add(key);
+            return key;
+        } else if (currentKey != null) {
+            handleIndentedLine(params.get(currentKey), line, params, currentKey, blockKeys.contains(currentKey));
+        }
+        return currentKey;
+    }
+
+    private String stripQuotes(String val) {
+        if (val.length() >= 2 && ((val.startsWith("\"") && val.endsWith("\"")) || (val.startsWith("'") && val.endsWith("'")))) {
+            return val.substring(1, val.length() - 1);
+        }
+        return val;
+    }
+
+    @SuppressWarnings("unchecked")
+    private void handleIndentedLine(Object existing, String line, Map<String, Object> params, String key, boolean isBlock) {
+        String stripped = line.stripLeading();
+        int subSep = stripped.indexOf(':');
+
+        // Only parse as map if NOT a block and looks like "key: value" (no spaces in key)
+        if (!isBlock && subSep > 0 && !stripped.substring(0, subSep).contains(" ")) {
+            Map<String, String> subMap;
+            if (existing instanceof Map) {
+                subMap = (Map<String, String>) existing;
+            } else {
+                subMap = new LinkedHashMap<>();
+                params.put(key, subMap);
+            }
+            String subKey = stripped.substring(0, subSep).trim();
+            String subVal = stripQuotes(stripped.substring(subSep + 1).trim());
+            subMap.put(subKey, subVal);
+        } else if (existing instanceof String s) {
+            params.put(key, s + stripped + "\n");
+        }
     }
 
     private RecipeDefinition buildDefinition(Map<String, String> frontmatter, List<RecipeStep> steps, Path file) {

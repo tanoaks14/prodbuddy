@@ -8,6 +8,7 @@ import java.util.regex.Pattern;
 
 import com.prodbuddy.core.tool.ToolContext;
 import com.prodbuddy.core.tool.ToolResponse;
+import com.prodbuddy.recipes.RecipeStepSummarizer;
 
 /**
  * Resolves ${PLACEHOLDER} syntax in recipe parameter values.
@@ -38,16 +39,30 @@ public final class RecipeVarResolver {
         return sb.toString();
     }
 
-    public Map<String, String> resolveAll(
-            Map<String, String> rawParams,
+    public Map<String, Object> resolveAll(
+            Map<String, Object> rawParams,
             ToolContext ctx,
             Map<String, ToolResponse> stepResults
     ) {
-        Map<String, String> resolved = new LinkedHashMap<>();
-        for (Map.Entry<String, String> entry : rawParams.entrySet()) {
-            resolved.put(entry.getKey(), resolve(entry.getValue(), ctx, stepResults));
+        Map<String, Object> resolved = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> entry : rawParams.entrySet()) {
+            resolved.put(entry.getKey(), resolveRecursively(entry.getValue(), ctx, stepResults));
         }
         return resolved;
+    }
+
+    private Object resolveRecursively(Object val, ToolContext ctx, Map<String, ToolResponse> stepResults) {
+        if (val instanceof String s) {
+            return resolve(s, ctx, stepResults);
+        }
+        if (val instanceof Map<?, ?> map) {
+            Map<String, Object> resolvedMap = new LinkedHashMap<>();
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                resolvedMap.put(String.valueOf(entry.getKey()), resolveRecursively(entry.getValue(), ctx, stepResults));
+            }
+            return resolvedMap;
+        }
+        return val;
     }
 
     private String resolveKey(String key, ToolContext ctx, Map<String, ToolResponse> stepResults) {
@@ -62,11 +77,51 @@ public final class RecipeVarResolver {
 
     private String resolveStepPath(String stepName, String path, Map<String, ToolResponse> stepResults) {
         ToolResponse response = stepResults.get(stepName);
-        if (response == null || !response.success()) {
+        if (response == null) {
             return "${" + stepName + "." + path + "}";
         }
-        Object value = walkPath(response.data(), path);
+
+        String special = handleSpecialFields(response, path);
+        if (special != null) {
+            return special;
+        }
+
+        if (!response.success()) {
+            return "${" + stepName + "." + path + "}";
+        }
+
+        Map<String, Object> data = unwrapIfOrchestrator(response.data(), path);
+        Object value = walkPath(data, path);
         return value != null ? String.valueOf(value) : "${" + stepName + "." + path + "}";
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> unwrapIfOrchestrator(Map<String, Object> data, String path) {
+        if (!data.containsKey("result") || "result".equals(path) || "tool".equals(path) || "iteration".equals(path)) {
+            return data;
+        }
+        Object nested = data.get("result");
+        if (!(nested instanceof Map m)) {
+            return data;
+        }
+        // Smart Body Unwrapping: if the key isn't in outer map but is in body, dive in.
+        if (m.containsKey("body") && !m.containsKey(path) && m.get("body") instanceof Map) {
+            return (Map<String, Object>) m.get("body");
+        }
+        return (Map<String, Object>) m;
+    }
+
+    private String handleSpecialFields(ToolResponse response, String path) {
+        if ("summary".equals(path)) {
+            return RecipeStepSummarizer.summarize(response);
+        }
+        if ("success".equals(path)) {
+            return String.valueOf(response.success());
+        }
+        if ("trend".equals(path)) {
+            return RecipeStepSummarizer.extractTrend(response);
+        }
+        return null;
     }
 
     private Object walkPath(Object node, String path) {
