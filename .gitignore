@@ -6,7 +6,9 @@ target/
 .settings/
 .vscode/
 .env
-docs/
+docs/*
+!docs/creating-recipes-guide.md
+
 
 # OS files
 .DS_Store

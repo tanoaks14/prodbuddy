@@ -22,16 +22,19 @@ public final class NrqlQueryBuilder {
         return switch (metric) {
             case "errors" ->
                 "SELECT count(*)";
-            case "latency" ->
+            case "latency", "latency.transaction.rate" ->
                 "SELECT average(duration)";
             case "apdex" ->
                 "SELECT average(apdex)";
             case "error_rate" ->
                 "SELECT percentage(count(*), WHERE error IS true)";
+            case "throughput" ->
+                "SELECT rate(count(*), 1 minute)";
             default ->
                 "SELECT rate(count(*), 1 minute)";
         };
     }
+
 
     private String eventForMetric(String metric) {
         return switch (metric) {

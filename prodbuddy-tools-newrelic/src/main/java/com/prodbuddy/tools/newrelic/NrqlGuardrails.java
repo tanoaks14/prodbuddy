@@ -5,11 +5,12 @@ import java.util.Set;
 public final class NrqlGuardrails {
 
     private static final Set<String> ALLOWED_METRICS = Set.of(
-            "errors", "latency", "throughput", "apdex", "error_rate"
+            "errors", "latency", "throughput", "apdex", "error_rate", "default", "latency.transaction.rate"
     );
     private static final Set<String> ALLOWED_GROUP_BY = Set.of(
-            "", "appName", "entity.guid", "host", "service"
+            "", "appName", "entity.guid", "host", "service", "endpoint"
     );
+
 
     private final int maxTimeWindowMinutes;
     private final int maxLimit;

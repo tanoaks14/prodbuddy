@@ -152,14 +152,29 @@ public final class NewRelicTool implements Tool {
     }
 
     private NrqlQueryRequest requestFrom(ToolRequest request) {
-        String scenario = String.valueOf(request.payload().getOrDefault("scenario", "default"));
-        String metric = String.valueOf(request.payload().getOrDefault("metric", scenario));
+        Object m = request.payload().get("metric");
+        if (m == null) m = request.payload().get("metric_name");
+        if (m == null) m = request.payload().get("scenario");
+        
+        String metric = (m != null) ? String.valueOf(m) : "default";
+        
         int window = intFrom(request.payload(), "timeWindowMinutes", 5);
+        if (request.payload().containsKey("time_window")) {
+            // Basic parsing for "last X hours" or "X"
+            String tw = String.valueOf(request.payload().get("time_window")).toLowerCase();
+            if (tw.contains("hour")) {
+                window = Integer.parseInt(tw.replaceAll("[^0-9]", "")) * 60;
+            } else {
+                try { window = Integer.parseInt(tw.replaceAll("[^0-9]", "")); } catch (Exception e) {}
+            }
+        }
+
         int limit = intFrom(request.payload(), "limit", 100);
         String groupBy = String.valueOf(request.payload().getOrDefault("groupBy", ""));
         Map<String, String> filters = filtersFrom(request.payload().get("filters"));
         return new NrqlQueryRequest(metric, filters, window, limit, groupBy);
     }
+
 
     @SuppressWarnings("unchecked")
     private Map<String, String> filtersFrom(Object value) {

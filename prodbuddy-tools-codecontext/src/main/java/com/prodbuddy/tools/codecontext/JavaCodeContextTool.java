@@ -79,11 +79,12 @@ public final class JavaCodeContextTool implements Tool {
         return new ToolMetadata(
                 NAME,
                 "Java project context and code search tool",
-                Set.of("code.summary", "code.search", "code.p1_context", "code.build_graph_db",
-                       "code.refresh_graph_db", "code.context_from_query", "code.incident_report",
-                       "code.query_graph", "code.p1_tool_calls", "code.dead_code",
-                       "code.change_impact", "code.complexity_report", "code.call_chain")
+                Set.of("codecontext.summary", "codecontext.search", "codecontext.p1_context", "codecontext.build_graph_db",
+                       "codecontext.refresh_graph_db", "codecontext.context_from_query", "codecontext.incident_report",
+                       "codecontext.query_graph", "codecontext.p1_tool_calls", "codecontext.dead_code",
+                       "codecontext.change_impact", "codecontext.complexity_report", "codecontext.call_chain")
         );
+
     }
 
     @Override

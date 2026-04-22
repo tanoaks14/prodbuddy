@@ -150,8 +150,9 @@ public final class AgentTool implements Tool {
 
     private boolean isGlobalVar(String var) {
         // Basic list of known global context vars (can be expanded)
-        return java.util.Set.of("USER", "PASSWORD", "URL", "ENV").contains(var);
+        return java.util.Set.of("USER", "PASSWORD", "URL", "ENV", "input").contains(var);
     }
+
 
     private void validateRecipe(String content) throws Exception {
         java.nio.file.Path temp = java.nio.file.Files.createTempFile("gen-recipe-val", ".md");
