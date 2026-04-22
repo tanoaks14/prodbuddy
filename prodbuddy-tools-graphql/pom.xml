@@ -9,8 +9,8 @@
         <version>0.1.0-SNAPSHOT</version>
     </parent>
 
-    <artifactId>prodbuddy-tools-json</artifactId>
-    <name>ProdBuddy JSON Tool</name>
+    <artifactId>prodbuddy-tools-graphql</artifactId>
+    <name>ProdBuddy GraphQL Tool</name>
 
     <dependencies>
         <dependency>
@@ -27,11 +27,5 @@
             <artifactId>junit-jupiter-api</artifactId>
             <scope>test</scope>
         </dependency>
-        <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter-engine</artifactId>
-            <scope>test</scope>
-        </dependency>
     </dependencies>
-
 </project>

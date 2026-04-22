@@ -84,6 +84,11 @@
             <version>${project.version}</version>
         </dependency>
         <dependency>
+            <groupId>com.prodbuddy</groupId>
+            <artifactId>prodbuddy-tools-graphql</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-api</artifactId>
             <scope>test</scope>

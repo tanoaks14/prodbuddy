@@ -65,6 +65,9 @@ public final class RuleBasedToolRouter implements ToolRouter {
         if (isKubectlIntent(intent)) {
             return Optional.of("kubectl");
         }
+        if (isGraphQLIntent(intent)) {
+            return Optional.of("graphql");
+        }
         if (intent.contains("json") || intent.contains("parse")) {
             return Optional.of("json");
         }
@@ -112,5 +115,9 @@ public final class RuleBasedToolRouter implements ToolRouter {
         return intent.contains("kubectl")
             || intent.contains("k8s")
             || intent.contains("kubernetes");
+    }
+
+    private boolean isGraphQLIntent(final String intent) {
+        return intent.contains("graphql") || intent.contains("gql");
     }
 }

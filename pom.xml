@@ -27,7 +27,9 @@
         <module>prodbuddy-tools-json</module>
         <module>prodbuddy-tools-git</module>
         <module>prodbuddy-tools-agent</module>
+        <module>prodbuddy-tools-graphql</module>
     </modules>
+
 
     <properties>
         <maven.compiler.release>25</maven.compiler.release>
