@@ -43,14 +43,26 @@
         </then>
     </if>
 
-    <root level="INFO">
-        <appender-ref ref="STDOUT" />
-        <appender-ref ref="FILE" />
-        <if condition='property("SPLUNK_HEC_ENABLED").contains("true")'>
-            <then>
+
+    <!-- Define a separate logger for Splunk if enabled, or just use the property-based approach correctly -->
+    <!-- Actually, the simplest way is to put the root definition inside the if/else -->
+    
+    <if condition='property("SPLUNK_HEC_ENABLED").contains("true")'>
+        <then>
+            <root level="INFO">
+                <appender-ref ref="STDOUT" />
+                <appender-ref ref="FILE" />
                 <appender-ref ref="ASYNC_SPLUNK" />
-            </then>
-        </if>
-    </root>
+            </root>
+        </then>
+        <else>
+            <root level="INFO">
+                <appender-ref ref="STDOUT" />
+                <appender-ref ref="FILE" />
+            </root>
+        </else>
+    </if>
+
+
 
 </configuration>

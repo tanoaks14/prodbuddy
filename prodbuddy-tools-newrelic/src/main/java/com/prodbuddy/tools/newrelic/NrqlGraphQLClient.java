@@ -34,7 +34,10 @@ public final class NrqlGraphQLClient {
             return ToolResponse.failure("NEWRELIC_CONFIG", "NEWRELIC_USER_API_KEY is required");
         }
 
-        String url = context.envOrDefault("NEWRELIC_GRAPHQL_URL", "https://api.newrelic.com/graphql");
+        String region = context.envOrDefault("NEWRELIC_REGION", "US").toUpperCase();
+        String defaultUrl = region.equals("EU") ? "https://api.eu.newrelic.com/graphql" : "https://api.newrelic.com/graphql";
+        String url = context.envOrDefault("NEWRELIC_GRAPHQL_URL", defaultUrl);
+
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(url))
                 .timeout(Duration.ofSeconds(20))

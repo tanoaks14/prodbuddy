@@ -48,7 +48,7 @@ public final class LocalOpenDataLoaderPdfAdapter implements OpenDataLoaderPdfAda
                 document.addPage(page);
 
                 try (PDPageContentStream contentStream = new PDPageContentStream(document, page)) {
-                    renderContent(contentStream, content);
+                    renderContent(document, contentStream, content);
                 }
 
                 document.save(filePath.toFile());
@@ -63,17 +63,29 @@ public final class LocalOpenDataLoaderPdfAdapter implements OpenDataLoaderPdfAda
         }
     }
 
-    private void renderContent(PDPageContentStream cs, String content) throws IOException {
+    private void renderContent(PDDocument doc, PDPageContentStream cs, String content) throws IOException {
         float y = initFontsPosition(cs);
         String sanitized = content.replace("\r", "").replace("\t", "    ");
-        y = renderBody(cs, new PDType1Font(Standard14Fonts.FontName.HELVETICA), sanitized, y);
+        PDType1Font font = safeLoadFont(Standard14Fonts.FontName.HELVETICA);
+        y = renderBody(cs, font, sanitized, y);
         cs.endText();
         renderChartIfPresent(cs, sanitized, y);
     }
 
+    private PDType1Font safeLoadFont(Standard14Fonts.FontName name) {
+        try {
+            return new PDType1Font(name);
+        } catch (Exception e) {
+            // Fallback to COURIER if HELVETICA fails (common on some OS/JVM combos)
+            System.err.println("Failed to load font " + name + ", falling back to COURIER: " + e.getMessage());
+            return new PDType1Font(Standard14Fonts.FontName.COURIER);
+        }
+    }
+
+
     private float initFontsPosition(PDPageContentStream cs) throws IOException {
         cs.beginText();
-        cs.setFont(new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD), 16);
+        cs.setFont(safeLoadFont(Standard14Fonts.FontName.HELVETICA_BOLD), 16);
         cs.setLeading(25f);
         cs.newLineAtOffset(50, 800);
         cs.showText("ProdBuddy Diagnostic Report");
@@ -161,7 +173,7 @@ public final class LocalOpenDataLoaderPdfAdapter implements OpenDataLoaderPdfAda
         cs.stroke();
         
         cs.beginText();
-        cs.setFont(new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD), 8);
+        cs.setFont(safeLoadFont(Standard14Fonts.FontName.HELVETICA_BOLD), 8);
         cs.setNonStrokingColor(Color.BLACK);
         cs.newLineAtOffset(55, y - 12);
         cs.showText("NEW RELIC PERFORMANCE TRENDS (5-DAY WINDOW)");
