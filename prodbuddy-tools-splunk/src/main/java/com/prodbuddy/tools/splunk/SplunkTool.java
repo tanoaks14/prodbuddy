@@ -76,8 +76,20 @@ public final class SplunkTool implements Tool {
         String search = queryBuilder.resolveSearch(request, context);
         String path = queryBuilder.resolvePath(op, request.payload());
         String body = queryBuilder.buildBody(op, request.payload(), search);
+        String method = resolveMethod(op, request.payload());
 
-        return send(buildRequest(baseUrl, path, body, auth, mode), op, search, path, mode);
+        return send(buildRequest(baseUrl, path, body, auth, mode, method), op, search, path, mode);
+    }
+
+    private String resolveMethod(String op, Map<String, Object> payload) {
+        Object customMethod = payload.get("method");
+        if (customMethod != null && !String.valueOf(customMethod).isBlank()) {
+            return String.valueOf(customMethod).toUpperCase();
+        }
+        if ("results".equals(op) || "jobs".equals(op)) {
+            return "GET";
+        }
+        return "POST";
     }
 
     private String resolveValidAuthHeaderOrThrow(ToolRequest req, ToolContext ctx, String baseUrl) {
@@ -190,9 +202,18 @@ public final class SplunkTool implements Tool {
         return Boolean.parseBoolean(String.valueOf(req.payload().getOrDefault("authEnabled", ctx.envOrDefault("SPLUNK_AUTH_ENABLED", "true"))));
     }
 
-    private HttpRequest buildRequest(String base, String path, String body, String auth, String mode) {
-        HttpRequest.Builder b = HttpRequest.newBuilder().uri(URI.create(base + path)).timeout(Duration.ofSeconds(20))
-                .header("Content-Type", "application/x-www-form-urlencoded").POST(HttpRequest.BodyPublishers.ofString(body));
+    private HttpRequest buildRequest(String base, String path, String body, String auth, String mode, String method) {
+        HttpRequest.Builder b = HttpRequest.newBuilder().timeout(Duration.ofSeconds(20));
+        
+        if ("GET".equalsIgnoreCase(method)) {
+            String url = body.isBlank() ? base + path : base + path + "?" + body;
+            b.uri(URI.create(url)).GET();
+        } else {
+            b.uri(URI.create(base + path))
+             .header("Content-Type", "application/x-www-form-urlencoded")
+             .POST(HttpRequest.BodyPublishers.ofString(body));
+        }
+
         if (auth != null && !auth.isBlank()) {
             if (MODE_COOKIE.equals(mode)) b.header("Cookie", auth);
             else b.header("Authorization", auth);

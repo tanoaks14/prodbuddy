@@ -19,6 +19,7 @@ public final class SplunkHttpClientFactory {
         
         return HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(5))
+                .followRedirects(HttpClient.Redirect.ALWAYS)
                 .sslContext(insecureSslContext())
                 .sslParameters(sslParams)
                 .build();

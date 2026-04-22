@@ -43,6 +43,11 @@ public final class SplunkQueryBuilder {
     }
 
     public String resolvePath(String operation, Map<String, Object> payload) {
+        Object customPath = payload.get("path");
+        if (customPath != null && !String.valueOf(customPath).isBlank()) {
+            return String.valueOf(customPath);
+        }
+
         if ("oneshot".equals(operation)) {
             return "/services/search/jobs/oneshot";
         }
@@ -56,9 +61,15 @@ public final class SplunkQueryBuilder {
     }
 
     public String buildBody(String operation, Map<String, Object> payload, String search) {
+        Object rawBody = payload.get("rawBody");
+        if (rawBody != null && !String.valueOf(rawBody).isBlank()) {
+            return String.valueOf(rawBody);
+        }
+
         StringBuilder builder = new StringBuilder();
         if (!"results".equals(operation)) {
-            builder.append("search=").append(URLEncoder.encode(search, StandardCharsets.UTF_8));
+            String searchKey = String.valueOf(payload.getOrDefault("searchKey", "search"));
+            builder.append(searchKey).append("=").append(URLEncoder.encode(search, StandardCharsets.UTF_8));
         }
 
         appendOptional(builder, "earliest_time", payload.get("earliestTime"));
@@ -66,6 +77,14 @@ public final class SplunkQueryBuilder {
         appendOptional(builder, "count", payload.get("count"));
         appendOptional(builder, "exec_mode", payload.get("execMode"));
         appendOptional(builder, "output_mode", payload.getOrDefault("outputMode", "json"));
+
+        Object extra = payload.get("params");
+        if (extra instanceof Map<?, ?> map) {
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                appendOptional(builder, String.valueOf(entry.getKey()), entry.getValue());
+            }
+        }
+
         return builder.toString();
     }
 
