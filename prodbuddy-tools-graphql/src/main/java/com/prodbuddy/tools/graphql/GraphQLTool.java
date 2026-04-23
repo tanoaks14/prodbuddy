@@ -61,7 +61,19 @@ public final class GraphQLTool implements Tool {
 
         try {
             String response = client.execute(url, query, variables, auth);
-            return ToolResponse.ok(Map.of("data", mapper.readTree(response)));
+            
+            final boolean noTruncate = Boolean.parseBoolean(String.valueOf(request.payload().getOrDefault("noTruncate", "false")));
+            final int maxChars = noTruncate ? Integer.MAX_VALUE : Integer.parseInt(String.valueOf(request.payload().getOrDefault("maxOutputChars", "20000")));
+            
+            String finalResponse = response;
+            if (response != null && response.length() > maxChars) {
+                finalResponse = response.substring(0, maxChars);
+            }
+
+            return ToolResponse.ok(Map.of(
+                "data", mapper.readTree(finalResponse),
+                "truncated", response != null && response.length() > maxChars
+            ));
         } catch (Exception e) {
             return ToolResponse.failure("GQL_QUERY_ERROR", e.getMessage());
         }

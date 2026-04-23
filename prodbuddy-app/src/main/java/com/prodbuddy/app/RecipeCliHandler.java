@@ -171,10 +171,21 @@ final class RecipeCliHandler {
             String call = step.tool() + "." + step.operation();
             System.out.println("- " + step.stepName() + " (call: " + call + ")");
             String status = step.response().success() ? "ok" : "failed";
+            
+            boolean logFull = Boolean.parseBoolean(String.valueOf(step.resolvedParams().getOrDefault("logFullResponse", "false")));
+            
             String summary = step.response().success()
                     ? summarizeSuccess(step.response().data())
                     : summarizeErrors(step.response().errors());
             System.out.println("  result: " + status + " - " + summary);
+
+            if (logFull && step.response().success()) {
+                Object body = step.response().data().get("body");
+                if (body != null) {
+                    System.out.println("  [FULL RESPONSE]");
+                    System.out.println(body);
+                }
+            }
         }
     }
 

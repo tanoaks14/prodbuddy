@@ -61,7 +61,9 @@ public final class KubectlTool implements Tool {
         }
         seqLog.logSequence("kubectl", "KubernetesCluster", "run", "Running command");
         int timeoutSeconds = Integer.parseInt(context.envOrDefault("KUBECTL_TIMEOUT_SECONDS", "20"));
-        int maxOutputChars = Integer.parseInt(context.envOrDefault("KUBECTL_MAX_OUTPUT_CHARS", "20000"));
+        final boolean noTruncate = Boolean.parseBoolean(String.valueOf(request.payload().getOrDefault("noTruncate", "false")));
+        final int maxOutputChars = noTruncate ? Integer.MAX_VALUE : Integer.parseInt(String.valueOf(request.payload().getOrDefault("maxOutputChars", 
+                context.envOrDefault("KUBECTL_MAX_OUTPUT_CHARS", "20000"))));
         return run(command, timeoutSeconds, maxOutputChars);
     }
 

@@ -58,7 +58,7 @@ public final class GenericApiTool implements Tool {
 
         seqLog.logSequence("http", "ExternalAPI", "send", method + " " + url);
         HttpRequest httpRequest = buildRequest(method, url, request.payload(), context);
-        return send(httpRequest, method, url);
+        return send(httpRequest, method, url, request, context);
     }
 
     private HttpRequest buildRequest(
@@ -108,15 +108,27 @@ public final class GenericApiTool implements Tool {
         return HttpRequest.BodyPublishers.ofString(body);
     }
 
-    private ToolResponse send(HttpRequest httpRequest, String method, String url) {
+    private ToolResponse send(HttpRequest httpRequest, String method, String url, ToolRequest toolRequest, ToolContext context) {
         try {
             HttpResponse<String> response = client.send(httpRequest, HttpResponse.BodyHandlers.ofString());
             seqLog.logSequence("ExternalAPI", "http", "send", "Response: " + response.statusCode());
+            
+            final boolean noTruncate = Boolean.parseBoolean(String.valueOf(toolRequest.payload().getOrDefault("noTruncate", "false")));
+            final int maxChars = noTruncate ? Integer.MAX_VALUE : Integer.parseInt(String.valueOf(toolRequest.payload().getOrDefault("maxOutputChars", 
+                    context.envOrDefault("HTTP_MAX_OUTPUT_CHARS", "20000"))));
+            
+            String body = response.body();
+            String finalBody = body;
+            if (body != null && body.length() > maxChars) {
+                finalBody = body.substring(0, maxChars);
+            }
+
             Map<String, Object> responseData = new java.util.HashMap<>();
             responseData.put("method", method);
             responseData.put("url", url);
             responseData.put("status", response.statusCode());
-            responseData.put("body", response.body());
+            responseData.put("body", finalBody);
+            responseData.put("truncated", body != null && body.length() > maxChars);
             
             try {
                 com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();

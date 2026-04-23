@@ -11,6 +11,8 @@ A **Recipe** is a sequence of diagnostic steps executed by the ProdBuddy Orchest
 - **Steps**: Denoted by `## step-name` headings (use dashes, no spaces).
 - **Key Order**: `tool:` and `operation:` MUST be the first two keys in a step.
 - **Multi-line**: Use the `|` character for multi-line queries (GQL, NRQL, SPL).
+- **Truncation Control**: Most tools truncate output at 20,000 characters by default. Use `noTruncate: true` to disable this or `maxOutputChars: <number>` to customize it.
+- **Logging Control**: Use `logFullResponse: true` to print the complete response body in the CLI/Logs instead of a summary.
 
 ### **Variable Interpolation (`${...}`)**
 - **Environment**: `${VAR_NAME}` looks up values in `.env` or system environment.

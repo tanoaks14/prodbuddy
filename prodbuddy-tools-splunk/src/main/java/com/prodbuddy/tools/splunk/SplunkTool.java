@@ -78,7 +78,7 @@ public final class SplunkTool implements Tool {
         String body = queryBuilder.buildBody(op, request.payload(), search);
         String method = resolveMethod(op, request.payload());
 
-        return send(buildRequest(baseUrl, path, body, auth, mode, method), op, search, path, mode);
+        return send(buildRequest(baseUrl, path, body, auth, mode, method, request.payload()), op, search, path, mode, request, context);
     }
 
     private String resolveMethod(String op, Map<String, Object> payload) {
@@ -99,7 +99,7 @@ public final class SplunkTool implements Tool {
         return header;
     }
 
-    private ToolResponse send(HttpRequest request, String op, String search, String path, String mode) {
+    private ToolResponse send(HttpRequest request, String op, String search, String path, String mode, ToolRequest toolRequest, ToolContext context) {
         String attempted = "op=" + op + ", path=" + path + ", mode=" + mode + ", search=" + search;
         try {
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
@@ -107,11 +107,30 @@ public final class SplunkTool implements Tool {
             if (response.statusCode() >= 400 || body.contains("\"type\":\"ERROR\"") || body.contains("\"type\":\"FATAL\"")) {
                 return SplunkToolHelper.httpFailure(response, attempted);
             }
-            return ToolResponse.ok(Map.of("status", response.statusCode(), "body", body, "op", op, "mode", mode));
+            
+            final boolean noTruncate = Boolean.parseBoolean(String.valueOf(toolRequest.payload().getOrDefault("noTruncate", "false")));
+            final int maxChars = noTruncate ? Integer.MAX_VALUE : Integer.parseInt(String.valueOf(toolRequest.payload().getOrDefault("maxOutputChars", 
+                    context.envOrDefault("SPLUNK_MAX_OUTPUT_CHARS", "20000"))));
+            
+            String finalBody = truncate(body, maxChars);
+            return ToolResponse.ok(Map.of(
+                "status", response.statusCode(), 
+                "body", finalBody, 
+                "op", op, 
+                "mode", mode,
+                "truncated", body != null && body.length() > maxChars
+            ));
         } catch (IOException | InterruptedException ex) {
             if (ex instanceof InterruptedException) Thread.currentThread().interrupt();
             return SplunkToolHelper.exceptionFailure(ex, attempted);
         }
+    }
+
+    private String truncate(String body, int max) {
+        if (body == null || body.length() <= max) {
+            return body;
+        }
+        return body.substring(0, max);
     }
 
     private String credentialsMessage(ToolRequest req, ToolContext ctx) {
@@ -202,7 +221,7 @@ public final class SplunkTool implements Tool {
         return Boolean.parseBoolean(String.valueOf(req.payload().getOrDefault("authEnabled", ctx.envOrDefault("SPLUNK_AUTH_ENABLED", "true"))));
     }
 
-    private HttpRequest buildRequest(String base, String path, String body, String auth, String mode, String method) {
+    private HttpRequest buildRequest(String base, String path, String body, String auth, String mode, String method, Map<String, Object> payload) {
         HttpRequest.Builder b = HttpRequest.newBuilder().timeout(Duration.ofSeconds(20));
         
         if ("GET".equalsIgnoreCase(method)) {
@@ -218,6 +237,12 @@ public final class SplunkTool implements Tool {
             if (MODE_COOKIE.equals(mode)) b.header("Cookie", auth);
             else b.header("Authorization", auth);
         }
+
+        Object headers = payload.get("headers");
+        if (headers instanceof Map<?, ?> headerMap) {
+            headerMap.forEach((k, v) -> b.header(String.valueOf(k), String.valueOf(v)));
+        }
+
         return b.build();
     }
 }

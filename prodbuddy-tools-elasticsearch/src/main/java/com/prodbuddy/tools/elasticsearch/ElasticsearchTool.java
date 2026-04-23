@@ -115,8 +115,9 @@ public final class ElasticsearchTool implements Tool {
         final String body = queryBuilder.fromPayload(request.payload());
         final int timeout = Integer.parseInt(context.envOrDefault(
                 "ELASTICSEARCH_TIMEOUT_SECONDS", "15"));
-        final int maxChars = Integer.parseInt(context.envOrDefault(
-                "ELASTICSEARCH_MAX_BODY_CHARS", "20000"));
+        final boolean noTruncate = Boolean.parseBoolean(String.valueOf(request.payload().getOrDefault("noTruncate", "false")));
+        final int maxChars = noTruncate ? Integer.MAX_VALUE : Integer.parseInt(String.valueOf(request.payload().getOrDefault("maxOutputChars", 
+                context.envOrDefault("ELASTICSEARCH_MAX_BODY_CHARS", "20000"))));
         final HttpRequest.Builder builder = createRequest(
                 baseUrl, index, endpoint, method, body, timeout);
         addAuthHeader(builder, request, context);
