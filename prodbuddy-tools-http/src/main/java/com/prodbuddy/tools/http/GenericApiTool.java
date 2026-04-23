@@ -7,6 +7,8 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Set;
+import java.util.HashMap;
+import java.util.List;
 
 import com.prodbuddy.core.tool.Tool;
 import com.prodbuddy.core.tool.ToolContext;
@@ -15,17 +17,33 @@ import com.prodbuddy.core.tool.ToolRequest;
 import com.prodbuddy.core.tool.ToolResponse;
 import com.prodbuddy.observation.SequenceLogger;
 import com.prodbuddy.observation.Slf4jSequenceLogger;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
 
+/** Generic API tool implementation. */
 public final class GenericApiTool implements Tool {
 
+    /** Tool name. */
     private static final String NAME = "http";
+    /** Default timeout in seconds. */
+    private static final int DEFAULT_TIMEOUT = 5;
+
+    /** Method support guard. */
     private final HttpMethodSupport methodSupport;
+    /** HTTP client. */
     private final HttpClient client;
+    /** Sequence logger. */
     private final SequenceLogger seqLog;
 
-    public GenericApiTool(HttpMethodSupport methodSupport) {
-        this.methodSupport = methodSupport;
-        this.client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+    /**
+     * Constructor.
+     * @param support Method support guard.
+     */
+    public GenericApiTool(final HttpMethodSupport support) {
+        this.methodSupport = support;
+        this.client = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(DEFAULT_TIMEOUT))
+                .build();
         this.seqLog = new Slf4jSequenceLogger(GenericApiTool.class);
     }
 
@@ -34,21 +52,27 @@ public final class GenericApiTool implements Tool {
         return new ToolMetadata(
                 NAME,
                 "Generic API tool with optional auth",
-                Set.of("http.get", "http.post", "http.put", "http.patch", "http.delete", "http.head")
+                Set.of("http.get", "http.post", "http.put", "http.patch",
+                        "http.delete", "http.head")
         );
     }
 
     @Override
-    public boolean supports(ToolRequest request) {
-        return "http".equalsIgnoreCase(request.intent()) || "api".equalsIgnoreCase(request.intent());
+    public boolean supports(final ToolRequest request) {
+        return "http".equalsIgnoreCase(request.intent())
+                || "api".equalsIgnoreCase(request.intent());
     }
 
     @Override
-    public ToolResponse execute(ToolRequest request, ToolContext context) {
-        seqLog.logSequence("AgentLoopOrchestrator", "http", "execute", "HTTP " + request.operation());
-        String method = String.valueOf(request.payload().getOrDefault("method", request.operation())).toUpperCase();
+    public ToolResponse execute(final ToolRequest request,
+                                final ToolContext context) {
+        seqLog.logSequence("AgentLoopOrchestrator", "http", "execute",
+                "HTTP " + request.operation());
+        String method = String.valueOf(request.payload().getOrDefault("method",
+                request.operation())).toUpperCase();
         if (!methodSupport.supports(method)) {
-            return ToolResponse.failure("HTTP_METHOD", "Unsupported method: " + method);
+            return ToolResponse.failure("HTTP_METHOD",
+                    "Unsupported method: " + method);
         }
 
         String url = String.valueOf(request.payload().getOrDefault("url", ""));
@@ -57,17 +81,19 @@ public final class GenericApiTool implements Tool {
         }
 
         seqLog.logSequence("http", "ExternalAPI", "send", method + " " + url);
-        HttpRequest httpRequest = buildRequest(method, url, request.payload(), context);
+        HttpRequest httpRequest = buildRequest(method, url, request.payload(),
+                context);
         return send(httpRequest, method, url, request, context);
     }
 
     private HttpRequest buildRequest(
-            String method,
-            String url,
-            Map<String, Object> payload,
-            ToolContext context
+            final String method,
+            final String url,
+            final Map<String, Object> payload,
+            final ToolContext context
     ) {
-        int timeoutSeconds = Integer.parseInt(context.envOrDefault("HTTP_DEFAULT_TIMEOUT_SECONDS", "20"));
+        int timeoutSeconds = Integer.parseInt(context.envOrDefault(
+                "HTTP_DEFAULT_TIMEOUT_SECONDS", "20"));
         String body = String.valueOf(payload.getOrDefault("body", ""));
         HttpRequest.Builder builder = HttpRequest.newBuilder()
                 .uri(URI.create(url))
@@ -77,15 +103,17 @@ public final class GenericApiTool implements Tool {
     }
 
     private void addHeaders(
-            HttpRequest.Builder builder,
-            Map<String, Object> payload,
-            ToolContext context
+            final HttpRequest.Builder builder,
+            final Map<String, Object> payload,
+            final ToolContext context
     ) {
-        builder.header("Content-Type", String.valueOf(payload.getOrDefault("contentType", "application/json")));
+        builder.header("Content-Type", String.valueOf(payload.getOrDefault(
+                "contentType", "application/json")));
         boolean authEnabled = Boolean.parseBoolean(
                 String.valueOf(payload.getOrDefault(
                         "authEnabled",
-                        context.envOrDefault("HTTP_DEFAULT_AUTH_ENABLED", "false")
+                        context.envOrDefault("HTTP_DEFAULT_AUTH_ENABLED",
+                                "false")
                 ))
         );
         if (!authEnabled) {
@@ -101,51 +129,71 @@ public final class GenericApiTool implements Tool {
         }
     }
 
-    private HttpRequest.BodyPublisher bodyPublisher(String method, String body) {
-        if ("GET".equals(method) || "DELETE".equals(method) || "HEAD".equals(method)) {
+    private HttpRequest.BodyPublisher bodyPublisher(final String method,
+                                                    final String body) {
+        if ("GET".equals(method) || "DELETE".equals(method)
+                || "HEAD".equals(method)) {
             return HttpRequest.BodyPublishers.noBody();
         }
         return HttpRequest.BodyPublishers.ofString(body);
     }
 
-    private ToolResponse send(HttpRequest httpRequest, String method, String url, ToolRequest toolRequest, ToolContext context) {
+    private ToolResponse send(final HttpRequest httpRequest,
+                              final String method,
+                              final String url,
+                              final ToolRequest toolRequest,
+                              final ToolContext context) {
         try {
-            HttpResponse<String> response = client.send(httpRequest, HttpResponse.BodyHandlers.ofString());
-            seqLog.logSequence("ExternalAPI", "http", "send", "Response: " + response.statusCode());
-            
-            final boolean noTruncate = Boolean.parseBoolean(String.valueOf(toolRequest.payload().getOrDefault("noTruncate", "false")));
-            final int maxChars = noTruncate ? Integer.MAX_VALUE : Integer.parseInt(String.valueOf(toolRequest.payload().getOrDefault("maxOutputChars", 
-                    context.envOrDefault("HTTP_MAX_OUTPUT_CHARS", "20000"))));
-            
+            HttpResponse<String> response = client.send(httpRequest,
+                    HttpResponse.BodyHandlers.ofString());
+            seqLog.logSequence("ExternalAPI", "http", "send",
+                    "Response: " + response.statusCode());
+
+            int maxChars = resolveMaxChars(toolRequest, context);
             String body = response.body();
-            String finalBody = body;
-            if (body != null && body.length() > maxChars) {
-                finalBody = body.substring(0, maxChars);
-            }
+            String finalBody = (body != null && body.length() > maxChars)
+                    ? body.substring(0, maxChars) : body;
 
-            Map<String, Object> responseData = new java.util.HashMap<>();
-            responseData.put("method", method);
-            responseData.put("url", url);
-            responseData.put("status", response.statusCode());
-            responseData.put("body", finalBody);
-            responseData.put("truncated", body != null && body.length() > maxChars);
-            
-            try {
-                com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-                com.fasterxml.jackson.databind.JsonNode node = mapper.readTree(response.body());
-                if (node.isObject()) {
-                    responseData.put("jsonBody", mapper.convertValue(node, Map.class));
-                } else if (node.isArray()) {
-                    responseData.put("jsonBody", mapper.convertValue(node, java.util.List.class));
-                }
-            } catch (Exception e) {
-                // Ignore parsing errors, it just means body is not json
-            }
+            Map<String, Object> data = new HashMap<>();
+            data.put("method", method);
+            data.put("url", url);
+            data.put("status", response.statusCode());
+            data.put("body", finalBody);
+            data.put("truncated", body != null && body.length() > maxChars);
 
-            return ToolResponse.ok(responseData);
+            tryParseJson(response.body(), data);
+            return ToolResponse.ok(data);
         } catch (Exception exception) {
-            seqLog.logSequence("ExternalAPI", "http", "send", "Failed: " + exception.getMessage());
-            return ToolResponse.failure("HTTP_CALL_FAILED", exception.getMessage());
+            seqLog.logSequence("ExternalAPI", "http", "send",
+                    "Failed: " + exception.getMessage());
+            return ToolResponse.failure("HTTP_CALL_FAILED",
+                    exception.getMessage());
+        }
+    }
+
+    private int resolveMaxChars(final ToolRequest req, final ToolContext ctx) {
+        boolean noTrunc = Boolean.parseBoolean(String.valueOf(
+                req.payload().getOrDefault("noTruncate", "false")));
+        if (noTrunc) {
+            return Integer.MAX_VALUE;
+        }
+        return Integer.parseInt(String.valueOf(req.payload().getOrDefault(
+                "maxOutputChars", ctx.envOrDefault(
+                        "HTTP_MAX_OUTPUT_CHARS", "20000"))));
+    }
+
+    private void tryParseJson(final String body,
+                              final Map<String, Object> data) {
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode node = mapper.readTree(body);
+            if (node.isObject()) {
+                data.put("jsonBody", mapper.convertValue(node, Map.class));
+            } else if (node.isArray()) {
+                data.put("jsonBody", mapper.convertValue(node, List.class));
+            }
+        } catch (Exception e) {
+            // Ignore parsing errors
         }
     }
 }

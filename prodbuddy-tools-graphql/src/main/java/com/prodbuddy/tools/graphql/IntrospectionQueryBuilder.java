@@ -1,7 +1,14 @@
 package com.prodbuddy.tools.graphql;
 
+/** Utility for building GraphQL introspection queries. */
 public final class IntrospectionQueryBuilder {
-    
+
+    private IntrospectionQueryBuilder() { }
+
+    /**
+     * Gets the full introspection query.
+     * @return Query string.
+     */
     public static String getFullIntrospectionQuery() {
         return """
         query IntrospectionQuery {
@@ -30,6 +37,10 @@ public final class IntrospectionQueryBuilder {
         """;
     }
 
+    /**
+     * Gets the operations summary query.
+     * @return Query string.
+     */
     public static String getOperationsSummaryQuery() {
         return """
         {
