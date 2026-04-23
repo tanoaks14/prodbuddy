@@ -120,10 +120,10 @@ public final class SplunkQueryBuilder {
 
     private void appendStandardParams(final StringBuilder builder,
                                       final Map<String, Object> payload) {
-        appendOptional(builder, "earliest_time", first(payload, "earliestTime", "earliest_time"));
-        appendOptional(builder, "latest_time", first(payload, "latestTime", "latest_time"));
-        appendOptional(builder, "count", payload.get("count"));
-        appendOptional(builder, "exec_mode", first(payload, "execMode", "exec_mode"));
+        appendOptional(builder, "earliest_time", findParam(payload, "earliestTime", "earliest_time"));
+        appendOptional(builder, "latest_time", findParam(payload, "latestTime", "latest_time"));
+        appendOptional(builder, "count", findParam(payload, "count"));
+        appendOptional(builder, "exec_mode", findParam(payload, "execMode", "exec_mode"));
         
         boolean hasOutputMode = payload.containsKey("outputMode") || payload.containsKey("output_mode");
         if (!hasOutputMode && payload.get("params") instanceof Map<?, ?> pMap) {
@@ -133,6 +133,14 @@ public final class SplunkQueryBuilder {
         if (!hasOutputMode) {
             appendOptional(builder, "output_mode", "json");
         }
+    }
+
+    private Object findParam(final Map<String, Object> payload, final String... keys) {
+        Object val = first(payload, keys);
+        if (val == null && payload.get("params") instanceof Map<?, ?> pMap) {
+            val = first((Map<String, Object>) pMap, keys);
+        }
+        return val;
     }
 
     private String composeSearch(final Map<String, Object> payload) {
