@@ -72,11 +72,11 @@ public final class SplunkQueryBuilder {
         if ("oneshot".equals(operation)) {
             return "/services/search/jobs/oneshot";
         }
-        if ("results".equals(operation)) {
+        if ("results".equals(operation) || "summary".equals(operation)) {
             String sid = String.valueOf(payload.getOrDefault("sid", ""))
                     .trim();
             if (!sid.isBlank()) {
-                return "/services/search/jobs/" + sid + "/results";
+                return "/services/search/jobs/" + sid + "/" + operation;
             }
         }
         return "/services/search/jobs";

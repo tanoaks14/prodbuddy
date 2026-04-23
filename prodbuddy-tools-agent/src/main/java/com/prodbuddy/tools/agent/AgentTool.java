@@ -23,7 +23,7 @@ public final class AgentTool implements Tool {
         return new ToolMetadata(
                 "agent",
                 "Advanced reasoning and analysis tool powered by LLM.",
-                Set.of("agent.generate_recipe", "agent.validate_recipe", "agent.think", "agent.extract")
+                Set.of("agent.generate_recipe", "agent.validate_recipe", "agent.think", "agent.extract", "agent.wait")
         );
     }
 
@@ -37,10 +37,28 @@ public final class AgentTool implements Tool {
         return switch (request.operation()) {
             case "think" -> handleThink(request, context);
             case "extract" -> handleExtract(request, context);
+            case "wait" -> handleWait(request, context);
             case "generate_recipe" -> handleGenerateRecipe(request, context);
             case "validate_recipe" -> handleValidateRecipe(request, context);
             default -> ToolResponse.failure("UNKNOWN_OPERATION", "Operation not supported: " + request.operation());
         };
+    }
+
+    private ToolResponse handleWait(ToolRequest request, ToolContext context) {
+        Object secondsObj = request.payload().getOrDefault("seconds", "5");
+        int seconds = 5;
+        try {
+            seconds = Integer.parseInt(String.valueOf(secondsObj));
+        } catch (NumberFormatException e) {
+            // Fallback to 5
+        }
+        try {
+            Thread.sleep(seconds * 1000L);
+            return ToolResponse.ok(Map.of("waited_seconds", seconds, "status", "waited"));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return ToolResponse.failure("INTERRUPTED", "Wait interrupted.");
+        }
     }
 
     private ToolResponse handleExtract(ToolRequest request, ToolContext context) {
