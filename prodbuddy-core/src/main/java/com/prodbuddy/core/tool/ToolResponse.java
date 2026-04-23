@@ -16,6 +16,10 @@ public record ToolResponse(boolean success, Map<String, Object> data, List<ToolE
     }
 
     public static ToolResponse failure(String code, String message) {
-        return new ToolResponse(false, Map.of(), List.of(new ToolError(code, message)));
+        return failure(code, message, Map.of());
+    }
+
+    public static ToolResponse failure(String code, String message, Map<String, Object> data) {
+        return new ToolResponse(false, data, List.of(new ToolError(code, message)));
     }
 }

@@ -39,7 +39,8 @@ final class SplunkToolHelper {
                 "SPLUNK_QUERY_FAILED",
                 "Splunk returned HTTP " + response.statusCode()
                         + ". attempted: " + attempted
-                        + ". responseBody=" + truncate(response.body())
+                        + ". responseBody=" + truncate(response.body()),
+                java.util.Map.of("body", response.body())
         );
     }
 
@@ -51,12 +52,11 @@ final class SplunkToolHelper {
      */
     static ToolResponse exceptionFailure(final Exception ex,
                                          final String attempted) {
-        String msg = ex.getMessage();
-        if (msg == null || msg.isBlank()) {
-            msg = ex.getClass().getSimpleName();
-        }
-        return ToolResponse.failure("SPLUNK_QUERY_FAILED",
-                msg + ". attempted: " + attempted);
+        return ToolResponse.failure(
+                ex instanceof java.io.IOException ? "SPLUNK_IO_ERROR" : "SPLUNK_ERROR",
+                ex.getMessage() + " (attempted=" + attempted + ")",
+                java.util.Map.of("body", String.valueOf(ex.getMessage()))
+        );
     }
 
     /**

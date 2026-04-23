@@ -4,7 +4,7 @@ description: Advanced recipe mimicking browser-based Splunk Web job creation
 tags: [splunk, browser-flow, cookies]
 ---
 
-## 2. create-browser-job
+## create-browser-job
 
 tool: splunk
 operation: search
@@ -35,13 +35,13 @@ provenance: "UI:Search"
 earliest_time: "-15m"
 latest_time: "now"
 
-## 3. wait-for-job
+## wait-for-job
 tool: agent
 operation: extract
 target: "SID"
 data: "${create-browser-job.body}"
 
-## 4. get-job-summary
+## get-job-summary
 
 tool: splunk
 operation: summary
@@ -58,7 +58,7 @@ method: "GET"
 params:
 output_mode: "json"
 
-## 5. get-job-results
+## get-job-results
 
 tool: splunk
 operation: results
@@ -76,7 +76,7 @@ params:
 output_mode: "json"
 count: 100
 
-## 6. final-analysis
+## final-analysis
 
 tool: agent
 operation: think

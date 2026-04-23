@@ -114,10 +114,6 @@ public final class RecipeVarResolver {
             return special;
         }
 
-        if (!response.success()) {
-            return "${" + stepName + "." + path + "}";
-        }
-
         Map<String, Object> data = unwrapIfOrchestrator(response.data(), path);
         Object value = walkPath(data, path);
         return value != null ? String.valueOf(value) : "${" + stepName + "." + path + "}";
