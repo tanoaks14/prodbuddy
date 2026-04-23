@@ -23,7 +23,7 @@ public final class AgentTool implements Tool {
         return new ToolMetadata(
                 "agent",
                 "Advanced reasoning and analysis tool powered by LLM.",
-                Set.of("agent.generate_recipe", "agent.validate_recipe", "agent.think")
+                Set.of("agent.generate_recipe", "agent.validate_recipe", "agent.think", "agent.extract")
         );
     }
 
@@ -36,10 +36,36 @@ public final class AgentTool implements Tool {
     public ToolResponse execute(ToolRequest request, ToolContext context) {
         return switch (request.operation()) {
             case "think" -> handleThink(request, context);
+            case "extract" -> handleExtract(request, context);
             case "generate_recipe" -> handleGenerateRecipe(request, context);
             case "validate_recipe" -> handleValidateRecipe(request, context);
             default -> ToolResponse.failure("UNKNOWN_OPERATION", "Operation not supported: " + request.operation());
         };
+    }
+
+    private ToolResponse handleExtract(ToolRequest request, ToolContext context) {
+        AgentConfig config = AgentConfig.from(context.environment());
+        if (!config.enabled()) {
+            return ToolResponse.failure("AGENT_DISABLED", "Agent is disabled.");
+        }
+
+        String prompt = buildExtractionPrompt(request);
+        try {
+            String value = client.generate(prompt, config).trim();
+            // Try to clean up if LLM included conversational text
+            if (value.contains("\n")) value = value.split("\n")[0].trim();
+            return ToolResponse.ok(Map.of("sid", value, "value", value, "status", "extracted"));
+        } catch (Exception e) {
+            return ToolResponse.failure("LLM_ERROR", "Extraction failed: " + e.getMessage());
+        }
+    }
+
+    private String buildExtractionPrompt(ToolRequest request) {
+        String target = String.valueOf(request.payload().getOrDefault("target", "SID"));
+        String data = String.valueOf(request.payload().getOrDefault("data", ""));
+        return "You are a data extraction tool. Extract the " + target + " from the following data.\n"
+                + "Data: " + data + "\n\n"
+                + "Return ONLY the raw value, no explanation, no quotes, no conversational text.";
     }
 
     private ToolResponse handleThink(ToolRequest request, ToolContext context) {
