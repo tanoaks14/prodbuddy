@@ -120,10 +120,10 @@ public final class SplunkQueryBuilder {
 
     private void appendStandardParams(final StringBuilder builder,
                                       final Map<String, Object> payload) {
-        appendOptional(builder, "earliest_time", payload.get("earliestTime"));
-        appendOptional(builder, "latest_time", payload.get("latestTime"));
+        appendOptional(builder, "earliest_time", first(payload, "earliestTime", "earliest_time"));
+        appendOptional(builder, "latest_time", first(payload, "latestTime", "latest_time"));
         appendOptional(builder, "count", payload.get("count"));
-        appendOptional(builder, "exec_mode", payload.get("execMode"));
+        appendOptional(builder, "exec_mode", first(payload, "execMode", "exec_mode"));
         
         boolean hasOutputMode = payload.containsKey("outputMode") || payload.containsKey("output_mode");
         if (!hasOutputMode && payload.get("params") instanceof Map<?, ?> pMap) {
@@ -178,5 +178,15 @@ public final class SplunkQueryBuilder {
         }
         builder.append(key).append("=").append(URLEncoder.encode(
                 String.valueOf(value), StandardCharsets.UTF_8));
+    }
+
+    private Object first(final Map<String, Object> payload, final String... keys) {
+        for (String key : keys) {
+            Object val = payload.get(key);
+            if (val != null) {
+                return val;
+            }
+        }
+        return null;
     }
 }
