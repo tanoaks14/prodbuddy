@@ -26,7 +26,15 @@ public final class GraphQLTool implements Tool {
 
     /** Constructor. */
     public GraphQLTool() {
-        this.client = new GraphQLClient();
+        this(new GraphQLClient());
+    }
+
+    /**
+     * Protected constructor for testing.
+     * @param gqlClient GraphQL client.
+     */
+    protected GraphQLTool(final GraphQLClient gqlClient) {
+        this.client = gqlClient;
         this.mapper = new ObjectMapper();
     }
 
@@ -111,8 +119,8 @@ public final class GraphQLTool implements Tool {
         }
     }
 
-    private ToolResponse handleListOperations(final String url,
-                                              final Map<String, Object> auth) {
+    ToolResponse handleListOperations(final String url,
+                                      final Map<String, Object> auth) {
         try {
             String response = client.execute(url,
                     IntrospectionQueryBuilder.getOperationsSummaryQuery(),
@@ -130,7 +138,7 @@ public final class GraphQLTool implements Tool {
         }
     }
 
-    private List<Map<String, String>> extractFields(final JsonNode typeNode) {
+    List<Map<String, String>> extractFields(final JsonNode typeNode) {
         List<Map<String, String>> fields = new ArrayList<>();
         if (typeNode.isMissingNode()) {
             return fields;

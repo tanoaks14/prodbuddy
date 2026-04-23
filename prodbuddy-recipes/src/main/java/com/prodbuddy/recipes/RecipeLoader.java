@@ -72,6 +72,10 @@ public final class RecipeLoader {
                 currentStepName = line.substring(STEP_HEADING_PREFIX.length()).trim();
                 currentParams = new ArrayList<>();
             } else if (currentStepName != null && !line.isBlank()) {
+                // Ignore comment lines starting with # (but not ## which is a step)
+                if (line.trim().startsWith("#") && !line.startsWith("##")) {
+                    continue;
+                }
                 currentParams.add(line);
             }
         }

@@ -40,10 +40,20 @@ public final class GenericApiTool implements Tool {
      * @param support Method support guard.
      */
     public GenericApiTool(final HttpMethodSupport support) {
-        this.methodSupport = support;
-        this.client = HttpClient.newBuilder()
+        this(support, HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(DEFAULT_TIMEOUT))
-                .build();
+                .build());
+    }
+
+    /**
+     * Protected constructor for testing.
+     * @param support Method support guard.
+     * @param httpClient HTTP client.
+     */
+    protected GenericApiTool(final HttpMethodSupport support,
+                             final HttpClient httpClient) {
+        this.methodSupport = support;
+        this.client = httpClient;
         this.seqLog = new Slf4jSequenceLogger(GenericApiTool.class);
     }
 
@@ -171,7 +181,7 @@ public final class GenericApiTool implements Tool {
         }
     }
 
-    private int resolveMaxChars(final ToolRequest req, final ToolContext ctx) {
+    int resolveMaxChars(final ToolRequest req, final ToolContext ctx) {
         boolean noTrunc = Boolean.parseBoolean(String.valueOf(
                 req.payload().getOrDefault("noTruncate", "false")));
         if (noTrunc) {
@@ -182,8 +192,8 @@ public final class GenericApiTool implements Tool {
                         "HTTP_MAX_OUTPUT_CHARS", "20000"))));
     }
 
-    private void tryParseJson(final String body,
-                              final Map<String, Object> data) {
+    void tryParseJson(final String body,
+                      final Map<String, Object> data) {
         try {
             ObjectMapper mapper = new ObjectMapper();
             JsonNode node = mapper.readTree(body);

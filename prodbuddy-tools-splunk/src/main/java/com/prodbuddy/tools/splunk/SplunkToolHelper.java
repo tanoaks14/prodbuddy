@@ -114,6 +114,30 @@ final class SplunkToolHelper {
     }
 
     /**
+     * Extracts SID from response body.
+     * @param body Response body.
+     * @return SID or null.
+     */
+    static String extractSid(final String body) {
+        if (body == null || body.isBlank()) {
+            return null;
+        }
+        // Match "sid":"..." or <sid>...</sid>
+        Pattern json = Pattern.compile("\"sid\"\\s*:\\s*\"([^\"]+)\"");
+        Pattern xml = Pattern.compile("<sid>([^<]+)</sid>");
+
+        Matcher jm = json.matcher(body);
+        if (jm.find()) {
+            return jm.group(1);
+        }
+        Matcher xm = xml.matcher(body);
+        if (xm.find()) {
+            return xm.group(1);
+        }
+        return null;
+    }
+
+    /**
      * Extracts the port from a base URL.
      * @param baseUrl Base URL.
      * @return Port string.

@@ -70,8 +70,8 @@ public final class GraphQLClient {
         return response.body();
     }
 
-    private void applyAuth(final HttpRequest.Builder builder,
-                           final Map<String, Object> auth) {
+    void applyAuth(final HttpRequest.Builder builder,
+                   final Map<String, Object> auth) {
         if (auth == null) {
             return;
         }
@@ -98,8 +98,8 @@ public final class GraphQLClient {
         }
     }
 
-    private void applyBasic(final HttpRequest.Builder builder,
-                            final Map<String, Object> auth) {
+    void applyBasic(final HttpRequest.Builder builder,
+                    final Map<String, Object> auth) {
         String user = String.valueOf(auth.get("username"));
         String pass = String.valueOf(auth.get("password"));
         String encoded = Base64.getEncoder().encodeToString(
@@ -107,9 +107,9 @@ public final class GraphQLClient {
         builder.header("Authorization", "Basic " + encoded);
     }
 
-    private void applyHeader(final HttpRequest.Builder builder,
-                             final Map<String, Object> auth,
-                             final String token) {
+    void applyHeader(final HttpRequest.Builder builder,
+                     final Map<String, Object> auth,
+                     final String token) {
         String name = String.valueOf(auth.getOrDefault("headerName",
                 "X-GraphQL-Token"));
         builder.header(name, token);

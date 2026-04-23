@@ -124,8 +124,15 @@ public final class SplunkQueryBuilder {
         appendOptional(builder, "latest_time", payload.get("latestTime"));
         appendOptional(builder, "count", payload.get("count"));
         appendOptional(builder, "exec_mode", payload.get("execMode"));
-        appendOptional(builder, "output_mode", payload.getOrDefault(
-                "outputMode", "json"));
+        
+        boolean hasOutputMode = payload.containsKey("outputMode") || payload.containsKey("output_mode");
+        if (!hasOutputMode && payload.get("params") instanceof Map<?, ?> pMap) {
+            hasOutputMode = pMap.containsKey("outputMode") || pMap.containsKey("output_mode");
+        }
+        
+        if (!hasOutputMode) {
+            appendOptional(builder, "output_mode", "json");
+        }
     }
 
     private String composeSearch(final Map<String, Object> payload) {
