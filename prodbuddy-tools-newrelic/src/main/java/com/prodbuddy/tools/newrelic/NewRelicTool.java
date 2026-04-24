@@ -42,7 +42,10 @@ public final class NewRelicTool implements Tool {
         return new ToolMetadata(
                 NAME,
                 "New Relic data tool",
-                Set.of("newrelic.scenario", "newrelic.query", "newrelic.query_metrics", "newrelic.validate", "newrelic.list_dashboards", "newrelic.get_dashboard", "newrelic.list_apps", "newrelic.list_external_services", "newrelic.get_trace", "newrelic.gql_query")
+                Set.of("newrelic.scenario", "newrelic.query", "newrelic.query_metrics",
+                        "newrelic.validate", "newrelic.list_dashboards", "newrelic.get_dashboard",
+                        "newrelic.list_apps", "newrelic.list_external_services",
+                        "newrelic.get_trace", "newrelic.gql_query", "newrelic.snapshot")
         );
     }
 

@@ -78,8 +78,11 @@ public final class GenericApiTool implements Tool {
                                 final ToolContext context) {
         seqLog.logSequence("AgentLoopOrchestrator", "http", "execute",
                 "HTTP " + request.operation());
+        String defaultMethod = "download_base64".equalsIgnoreCase(request.operation())
+                ? "GET" : request.operation();
         String method = String.valueOf(request.payload().getOrDefault("method",
-                request.operation())).toUpperCase();
+                defaultMethod)).toUpperCase();
+
         if (!methodSupport.supports(method)) {
             return ToolResponse.failure("HTTP_METHOD",
                     "Unsupported method: " + method);
