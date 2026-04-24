@@ -82,7 +82,7 @@ A **Recipe** is a sequence of diagnostic steps executed by the ProdBuddy Orchest
 
 ### **Interactive Patterns**
 
-When building interactive recipes, use the `agent.think` tool to format raw JSON outputs into human-readable options before asking the user for a selection:
+When building interactive recipes, use the `agent.think` tool to format raw JSON outputs into human-readable options, and then **embed that output directly into the next interactive prompt**:
 
 ```yaml
 ## list-options
@@ -93,7 +93,11 @@ prompt: "Format these results as a list for the user: ${previous-step.body}"
 ## ask-selection
 tool: interactive
 operation: ask
-prompt: "Pick a GUID from the list above:"
+prompt: |
+  Available Options:
+  ${list-options.opinion}
+  
+  Please pick a GUID from the list above:
 ```
 
 ### **Interactive (`interactive`)**

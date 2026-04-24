@@ -26,7 +26,11 @@ prompt: |
 ## ask-dashboard-selection
 tool: interactive
 operation: ask
-prompt: "Please enter the GUID of the dashboard you want to snapshot (select from the list above):"
+prompt: |
+  Available Dashboards:
+  ${list-dashboard-options.opinion}
+  
+  Please enter the GUID of the dashboard you want to snapshot:
 
 ## get-dashboard-pages
 tool: newrelic
@@ -45,7 +49,11 @@ prompt: |
 ## ask-page-selection
 tool: interactive
 operation: ask
-prompt: "Please enter the GUID of the specific PAGE you want to snapshot (select from the list above):"
+prompt: |
+  Available Pages:
+  ${list-page-options.opinion}
+  
+  Please enter the GUID of the specific PAGE you want to snapshot:
 
 ## generate-snapshot
 tool: newrelic
