@@ -61,12 +61,14 @@ operation: snapshot
 guid: "${ask-page-selection.answer}"
 
 ## download-image-base64
+condition: "${generate-snapshot.success} == true"
 tool: http
 operation: download_base64
 url: "${generate-snapshot.body}"
 method: GET
 
 ## analyze-snapshot
+condition: "${download-image-base64.success} == true"
 tool: agent
 operation: think
 prompt: "Please analyze this New Relic dashboard snapshot. Look for error spikes, high latency, or unusual patterns."
@@ -76,13 +78,15 @@ image: "${download-image-base64.base64}"
 tool: agent
 operation: think
 prompt: |
-  The snapshot has been generated and analyzed.
+  Status Check:
+  - Snapshot Success: ${generate-snapshot.success}
+  - Image Download: ${download-image-base64.success}
   
-  URL: ${generate-snapshot.body}
+  Snapshot URL: ${generate-snapshot.body}
   
   Analysis Opinion:
   ${analyze-snapshot.opinion}
   
-  Instructions:
+  If successful:
   1. Copy the URL from the response for your records.
   2. If you want a PNG image instead of a PDF, change '?format=PDF' to '?format=PNG' at the end of the URL.

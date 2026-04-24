@@ -158,15 +158,42 @@ public final class NewRelicTool implements Tool {
         return client.query("{\"query\":\"" + query + "\"}", context);
     }
 
-    private ToolResponse createSnapshot(final ToolRequest request, final ToolContext context) {
+    private ToolResponse createSnapshot(final ToolRequest request,
+                                        final ToolContext context) {
         String guid = String.valueOf(request.payload().getOrDefault("guid", ""));
         if (guid.isBlank()) {
             return ToolResponse.failure("NEWRELIC_SNAPSHOT_GUID",
                 "guid is required for snapshot (use a dashboard page GUID)");
         }
-        String query = "mutation { dashboardCreateSnapshotURL(guid: \\\""
+        String query = "mutation { dashboardCreateSnapshotUrl(guid: \\\""
             + guid + "\\\") }";
-        return client.query("{\"query\":\"" + query + "\"}", context);
+        ToolResponse res = client.query("{\"query\":\"" + query + "\"}", context);
+        if (!res.success()) {
+            return res;
+        }
+        String body = String.valueOf(((Map<String, Object>) res.data()).get("body"));
+        return parseSnapshotResponse(body);
+    }
+
+    private ToolResponse parseSnapshotResponse(final String body) {
+        try {
+            com.fasterxml.jackson.databind.ObjectMapper mapper =
+                new com.fasterxml.jackson.databind.ObjectMapper();
+            com.fasterxml.jackson.databind.JsonNode node = mapper.readTree(body);
+            if (node.has("errors")) {
+                return ToolResponse.failure("NEWRELIC_GQL_ERROR",
+                    node.get("errors").toString());
+            }
+            String url = node.get("data").get("dashboardCreateSnapshotUrl").asText();
+            if (url == null || url.equals("null")) {
+                return ToolResponse.failure("NEWRELIC_SNAPSHOT_NULL",
+                    "Snapshot URL was null. Ensure the GUID is a dashboard PAGE GUID.");
+            }
+            return ToolResponse.ok(Map.of("url", url, "body", url));
+        } catch (Exception e) {
+            return ToolResponse.failure("NEWRELIC_SNAPSHOT_PARSE",
+                "Failed to parse snapshot response: " + e.getMessage());
+        }
     }
 
     private TraceRequest traceRequestFrom(final ToolRequest request) {
