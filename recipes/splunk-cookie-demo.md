@@ -1,8 +1,18 @@
-## step-1-cookie-based-search
+---
+name: splunk-cookie-demo
+description: Demonstrates Splunk search using included authentication
+tags: [splunk, demo, include]
+---
+
+## authentication
+tool: recipe
+operation: include
+path: "./common/splunk-setup.md"
+
+## step-search
 tool: splunk
 operation: oneshot
-description: Perform a Splunk oneshot search using a session cookie for authentication.
 authMode: cookie
-cookie: splunkd_8089=hL8_Xv9Q_abc123_DEF456_ghi789
+cookie: "${ask-splunk-sid.answer}"
 search: index=main | head 5
 outputMode: json

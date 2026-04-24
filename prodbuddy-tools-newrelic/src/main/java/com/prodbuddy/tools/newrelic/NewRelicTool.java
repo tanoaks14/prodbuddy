@@ -44,6 +44,7 @@ public final class NewRelicTool implements Tool {
                 "New Relic data tool",
                 Set.of("newrelic.scenario", "newrelic.query", "newrelic.query_metrics",
                         "newrelic.validate", "newrelic.list_dashboards", "newrelic.get_dashboard",
+                        "newrelic.get_dashboard_data",
                         "newrelic.list_apps", "newrelic.list_external_services",
                         "newrelic.get_trace", "newrelic.gql_query", "newrelic.snapshot")
         );
@@ -90,11 +91,40 @@ public final class NewRelicTool implements Tool {
         return switch (operation) {
             case "list_dashboards" -> listDashboards(dashboardRequestFrom(request), context);
             case "get_dashboard" -> getDashboard(dashboardRequestFrom(request), context);
+            case "get_dashboard_data" -> getDashboardData(dashboardRequestFrom(request), context);
             case "list_apps" -> listApplications(request, context);
             case "list_external_services" -> listExternalServices(request, context);
             case "snapshot" -> createSnapshot(request, context);
             default -> null;
         };
+    }
+
+    private ToolResponse getDashboardData(DashboardRequest req, ToolContext ctx) {
+        ToolResponse dash = getDashboard(req, ctx);
+        if (!dash.success()) return dash;
+        try {
+            com.fasterxml.jackson.databind.JsonNode root = new com.fasterxml.jackson.databind.ObjectMapper()
+                .readTree(String.valueOf(dash.data().get("body")));
+            com.fasterxml.jackson.databind.JsonNode widgets = root.path("data").path("actor").path("entity").path("pages").path(0).path("widgets");
+            java.util.List<Map<String, Object>> results = new java.util.ArrayList<>();
+            for (int i = 0; i < Math.min(widgets.size(), 10); i++) {
+                com.fasterxml.jackson.databind.JsonNode w = widgets.get(i);
+                String t = w.path("title").asText();
+                String rc = w.path("rawConfiguration").asText();
+                if (rc != null && rc.contains("nrqlQueries")) {
+                    String n = new com.fasterxml.jackson.databind.ObjectMapper().readTree(rc).path("nrqlQueries").path(0).path("query").asText();
+                    if (!n.isEmpty()) {
+                        if (!req.compareWith().isEmpty() && !n.toLowerCase().contains("compare with")) {
+                            n += " COMPARE WITH " + req.compareWith();
+                        }
+                        results.add(Map.of("title", t, "query", n, "data", client.execute(n, ctx).data()));
+                    }
+                }
+            }
+            return ToolResponse.ok(Map.of("dashboard", req.guid(), "results", results));
+        } catch (Exception e) {
+            return ToolResponse.failure("DASHBOARD_DATA_ERROR", "Failed: " + e.getMessage());
+        }
     }
 
     private ToolResponse dispatchTelemetry(final String operation, final ToolRequest request, final ToolContext context) {
@@ -161,51 +191,46 @@ public final class NewRelicTool implements Tool {
         return client.query("{\"query\":\"" + query + "\"}", context);
     }
 
-    private ToolResponse createSnapshot(final ToolRequest request,
-                                        final ToolContext context) {
-        String guid = String.valueOf(request.payload().getOrDefault("guid", ""));
-        String format = String.valueOf(request.payload().getOrDefault("format", "PDF")).toUpperCase();
-        
+    private ToolResponse createSnapshot(final ToolRequest req, final ToolContext ctx) {
+        String guid = String.valueOf(req.payload().getOrDefault("guid", ""));
+        String format = String.valueOf(req.payload().getOrDefault("format", "PDF")).toUpperCase();
         if (guid.isBlank()) {
-            return ToolResponse.failure("NEWRELIC_SNAPSHOT_GUID",
-                "guid is required for snapshot (use a dashboard page GUID)");
+            return ToolResponse.failure("NEWRELIC_SNAPSHOT_GUID", "guid required");
         }
-        String query = "mutation { dashboardCreateSnapshotUrl(guid: \\\""
-            + guid + "\\\") }";
-        ToolResponse res = client.query("{\"query\":\"" + query + "\"}", context);
-        if (!res.success()) {
-            return res;
-        }
-
-        String body = String.valueOf(((Map<String, Object>) res.data()).get("body"));
-        ToolResponse parsed = parseSnapshotResponse(body);
-        
-        if (parsed.success() && !"PDF".equals(format)) {
+        String q = "mutation { dashboardCreateSnapshotUrl(guid: \\\"" + guid + "\\\"" + buildSnapshotParams(req) + ") }";
+        ToolResponse res = client.query("{\"query\":\"" + q + "\"}", ctx);
+        if (!res.success()) return res;
+        ToolResponse parsed = parseSnapshotResponse(String.valueOf(((Map<String, Object>) res.data()).get("body")));
+        if (parsed.success()) {
             String url = String.valueOf(parsed.data().get("url"));
-            String finalUrl = url.replace("format=PDF", "format=" + format);
+            String finalUrl = url.replace("format=PDF", "format=" + format) + buildUrlParams(req);
             return ToolResponse.ok(Map.of("url", finalUrl, "body", finalUrl));
         }
         return parsed;
     }
 
+    private String buildUrlParams(ToolRequest req) {
+        Object p = req.payload().get("params");
+        if (!(p instanceof Map<?, ?> map)) return "";
+        StringBuilder sb = new StringBuilder();
+        map.forEach((k, v) -> sb.append("&").append(k).append("=").append(v));
+        return sb.toString();
+    }
+
+    private String buildSnapshotParams(ToolRequest req) {
+        Object d = req.payload().get("duration");
+        return (d == null) ? "" : ", params: { timeWindow: { duration: " + (Long.parseLong(String.valueOf(d)) * 60000L) + " } }";
+    }
+
     private ToolResponse parseSnapshotResponse(final String body) {
         try {
-            com.fasterxml.jackson.databind.ObjectMapper mapper =
-                new com.fasterxml.jackson.databind.ObjectMapper();
-            com.fasterxml.jackson.databind.JsonNode node = mapper.readTree(body);
-            if (node.has("errors")) {
-                return ToolResponse.failure("NEWRELIC_GQL_ERROR",
-                    node.get("errors").toString());
-            }
+            com.fasterxml.jackson.databind.JsonNode node = new com.fasterxml.jackson.databind.ObjectMapper().readTree(body);
+            if (node.has("errors")) return ToolResponse.failure("NEWRELIC_GQL_ERROR", node.get("errors").toString());
             String url = node.get("data").get("dashboardCreateSnapshotUrl").asText();
-            if (url == null || url.equals("null")) {
-                return ToolResponse.failure("NEWRELIC_SNAPSHOT_NULL",
-                    "Snapshot URL was null. Ensure the GUID is a dashboard PAGE GUID.");
-            }
+            if (url == null || url.equals("null")) return ToolResponse.failure("NEWRELIC_SNAPSHOT_NULL", "Snapshot URL was null.");
             return ToolResponse.ok(Map.of("url", url, "body", url));
         } catch (Exception e) {
-            return ToolResponse.failure("NEWRELIC_SNAPSHOT_PARSE",
-                "Failed to parse snapshot response: " + e.getMessage());
+            return ToolResponse.failure("NEWRELIC_SNAPSHOT_PARSE", "Parse failed: " + e.getMessage());
         }
     }
 
@@ -215,9 +240,10 @@ public final class NewRelicTool implements Tool {
     }
 
     private DashboardRequest dashboardRequestFrom(final ToolRequest request) {
-        String guid = String.valueOf(request.payload().getOrDefault("guid", ""));
-        String name = String.valueOf(request.payload().getOrDefault("name", ""));
-        return new DashboardRequest(guid, name);
+        Map<String, Object> p = request.payload();
+        return new DashboardRequest(String.valueOf(p.getOrDefault("guid", "")),
+                                    String.valueOf(p.getOrDefault("name", "")),
+                                    String.valueOf(p.getOrDefault("compareWith", "")));
     }
 
     private ToolResponse runQuery(final NrqlQueryRequest queryRequest, final ToolContext context) {
@@ -238,56 +264,23 @@ public final class NewRelicTool implements Tool {
     }
 
     private NrqlQueryRequest requestFrom(final ToolRequest request) {
-        String metric = parseMetric(request.payload());
-        int window = parseTimeWindow(request.payload());
-        int limit = intFrom(request.payload(), "limit", DEFAULT_LIMIT);
-        String groupBy = String.valueOf(request.payload()
-            .getOrDefault("groupBy", ""));
-        Map<String, String> filters = filtersFrom(request.payload()
-            .get("filters"));
-        return new NrqlQueryRequest(metric, filters, window, limit, groupBy);
-    }
-
-    private String parseMetric(final Map<String, Object> payload) {
-        Object m = payload.get("metric");
-        if (m == null) {
-            m = payload.get("metric_name");
+        Map<String, Object> p = request.payload();
+        String m = String.valueOf(p.getOrDefault("metric", p.getOrDefault("metric_name", p.getOrDefault("scenario", "default"))));
+        int w = intFrom(p, "timeWindowMinutes", DEFAULT_TIME_WINDOW);
+        if (p.containsKey("time_window")) {
+            String tw = String.valueOf(p.get("time_window")).toLowerCase();
+            if (tw.contains("hour")) w = Integer.parseInt(tw.replaceAll("[^0-9]", "")) * MINUTES_PER_HOUR;
+            else try { w = Integer.parseInt(tw.replaceAll("[^0-9]", "")); } catch (Exception e) { /* ignore */ }
         }
-        if (m == null) {
-            m = payload.get("scenario");
-        }
-        return (m != null) ? String.valueOf(m) : "default";
+        return new NrqlQueryRequest(m, filtersFrom(p.get("filters")), w, intFrom(p, "limit", DEFAULT_LIMIT), String.valueOf(p.getOrDefault("groupBy", "")));
     }
-
-    private int parseTimeWindow(final Map<String, Object> payload) {
-        int window = intFrom(payload, "timeWindowMinutes", DEFAULT_TIME_WINDOW);
-        if (payload.containsKey("time_window")) {
-            String tw = String.valueOf(payload.get("time_window")).toLowerCase();
-            if (tw.contains("hour")) {
-                window = Integer.parseInt(tw.replaceAll("[^0-9]", ""))
-                    * MINUTES_PER_HOUR;
-            } else {
-                try {
-                    window = Integer.parseInt(tw.replaceAll("[^0-9]", ""));
-                } catch (Exception e) {
-                    // Ignore
-                }
-            }
-        }
-        return window;
-    }
-
 
     @SuppressWarnings("unchecked")
     private Map<String, String> filtersFrom(final Object value) {
-        if (value instanceof Map<?, ?> map) {
-            return (Map<String, String>) map;
-        }
-        return Map.of();
+        return (value instanceof Map) ? (Map<String, String>) value : Map.of();
     }
 
-    private int intFrom(final Map<String, Object> payload, final String key, final int defaultValue) {
-        Object value = payload.getOrDefault(key, defaultValue);
-        return Integer.parseInt(String.valueOf(value));
+    private int intFrom(final Map<String, Object> p, final String k, final int d) {
+        return Integer.parseInt(String.valueOf(p.getOrDefault(k, d)));
     }
 }

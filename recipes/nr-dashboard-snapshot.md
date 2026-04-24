@@ -62,8 +62,36 @@ method: GET
 condition: "${download-image-base64.success} == true"
 tool: agent
 operation: think
-prompt: "Please analyze this New Relic dashboard snapshot. Look for error spikes, high latency, or unusual patterns."
+prompt: "Examine the dashboard layout and visual trends. Note any red status indicators or sharp trend line spikes."
 image: "${download-image-base64.base64}"
+
+## get-dashboard-data
+tool: newrelic
+operation: get_dashboard_data
+guid: "${select-page.guid}"
+
+## analyze-telemetry
+tool: agent
+operation: think
+prompt: |
+  You are an Expert SRE performing a diagnostic audit. 
+  Analyze the raw telemetry data extracted from the "${select-page.name}" dashboard.
+  
+  DATA SOURCES:
+  1. Visual Analysis (from snapshot): ${analyze-snapshot.opinion}
+  2. Raw Widget Data (JSON): ${get-dashboard-data.results}
+
+  ANALYSIS PROTOCOL:
+  1. TREND DETECTION: Scan the 'data' series for each widget in the JSON. Identify sudden spikes, flatlines, or steady increases.
+  2. THRESHOLD AUDIT: Look for values exceeding critical thresholds (e.g., Error Rate > 5%, p95 Latency > 1s, CPU > 80%).
+  3. CORRELATION: Check if latency increases in one widget align with error rate spikes or throughput changes in others.
+  4. QUANTIFICATION: Be precise. Mention specific peak values and timestamps found in the JSON (e.g., "Error rate peaked at 8.4%").
+
+  VERDICT:
+  - Is the system experiencing a "Hard Failure" (spikes in errors) or "Degradation" (slow latency/saturation)?
+  - Based on the widget titles and data correlation, what is the most likely root cause?
+  
+  Provide your analysis in a concise, action-oriented format.
 
 ## summarize-result
 tool: agent
@@ -72,14 +100,11 @@ prompt: |
   Status Check:
   - Dashboard: ${select-dashboard.name}
   - Page: ${select-page.name}
-  - Snapshot Success: ${generate-snapshot.success}
-  - Image Download: ${download-image-base64.success}
+  - Snapshot Capture: ${generate-snapshot.success}
+  - Data Extraction: ${get-dashboard-data.success}
   
-  Snapshot URL: ${generate-snapshot.body}
+  SRE Diagnostic Insight:
+  ${analyze-telemetry.opinion}
   
-  Analysis Opinion:
-  ${analyze-snapshot.opinion}
-  
-  Notes:
-  1. The snapshot was captured in PNG format for better visual analysis.
-  2. You can change 'format: PNG' to 'format: PDF' in the recipe if you prefer a document format.
+  Summary Note:
+  The analysis combined visual trend detection with raw NRQL result extraction (Top 10 widgets) to ensure High-Fidelity diagnostic accuracy.

@@ -1,7 +1,18 @@
-## step-1-fetch-single-alert
+---
+name: graphql-variables-test
+description: Test GraphQL queries with variables using common setup
+tags: [graphql, test, include]
+---
+
+## setup
+tool: recipe
+operation: include
+path: "./common/graphql-setup.md"
+
+## fetch-alert
 tool: graphql
 operation: query
-url: ${GRAPHQL_TEST_URL}
+url: "${ask-graphql-url.answer}"
 variables:
   targetId: 1
 query: |
@@ -13,7 +24,7 @@ query: |
     }
   }
 
-## step-2-verify
+## verify
 tool: agent
 operation: think
-prompt: "The alert retrieved via variable is: ${step-1-fetch-single-alert.data}"
+prompt: "The alert retrieved via variable is: ${fetch-alert.data}"

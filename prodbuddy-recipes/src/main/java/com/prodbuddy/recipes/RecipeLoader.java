@@ -19,7 +19,8 @@ public final class RecipeLoader {
         int bodyStart = findBodyStart(lines);
         Map<String, String> frontmatter = parseFrontmatter(lines);
         List<RecipeStep> steps = parseSteps(lines, bodyStart);
-        return buildDefinition(frontmatter, steps, file);
+        List<RecipeStep> resolvedSteps = resolveInclusions(steps, file);
+        return buildDefinition(frontmatter, resolvedSteps, file);
     }
 
     private int findBodyStart(List<String> lines) {
@@ -245,6 +246,24 @@ public final class RecipeLoader {
             return list.get(list.size() - 1);
         }
         return null;
+    }
+
+    private List<RecipeStep> resolveInclusions(List<RecipeStep> steps, Path file) throws IOException {
+        List<RecipeStep> resolved = new ArrayList<>();
+        for (RecipeStep step : steps) {
+            if ("recipe".equals(step.tool()) && "include".equals(step.operation())) {
+                String path = (String) step.rawParams().get("path");
+                if (path != null) {
+                    Path includePath = file.getParent().resolve(path);
+                    if (Files.exists(includePath)) {
+                        resolved.addAll(load(includePath).steps());
+                    }
+                }
+            } else {
+                resolved.add(step);
+            }
+        }
+        return resolved;
     }
 
     private RecipeDefinition buildDefinition(Map<String, String> frontmatter, List<RecipeStep> steps, Path file) {

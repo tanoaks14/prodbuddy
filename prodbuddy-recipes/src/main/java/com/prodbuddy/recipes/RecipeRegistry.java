@@ -27,12 +27,12 @@ public final class RecipeRegistry {
             return new RecipeRegistry(byName, byTag);
         }
         RecipeLoader loader = new RecipeLoader();
-        try (Stream<Path> files = Files.list(directory)) {
+        try (Stream<Path> files = Files.walk(directory)) {
             files.filter(f -> f.toString().endsWith(".md"))
                  .sorted()
                  .forEach(f -> loadOne(f, loader, byName, byTag));
         } catch (IOException ignored) {
-            // return whatever was indexed so far
+            // skip
         }
         return new RecipeRegistry(byName, byTag);
     }
