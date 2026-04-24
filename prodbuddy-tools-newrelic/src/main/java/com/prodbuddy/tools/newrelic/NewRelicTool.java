@@ -164,6 +164,8 @@ public final class NewRelicTool implements Tool {
     private ToolResponse createSnapshot(final ToolRequest request,
                                         final ToolContext context) {
         String guid = String.valueOf(request.payload().getOrDefault("guid", ""));
+        String format = String.valueOf(request.payload().getOrDefault("format", "PDF")).toUpperCase();
+        
         if (guid.isBlank()) {
             return ToolResponse.failure("NEWRELIC_SNAPSHOT_GUID",
                 "guid is required for snapshot (use a dashboard page GUID)");
@@ -174,8 +176,16 @@ public final class NewRelicTool implements Tool {
         if (!res.success()) {
             return res;
         }
+
         String body = String.valueOf(((Map<String, Object>) res.data()).get("body"));
-        return parseSnapshotResponse(body);
+        ToolResponse parsed = parseSnapshotResponse(body);
+        
+        if (parsed.success() && !"PDF".equals(format)) {
+            String url = String.valueOf(parsed.data().get("url"));
+            String finalUrl = url.replace("format=PDF", "format=" + format);
+            return ToolResponse.ok(Map.of("url", finalUrl, "body", finalUrl));
+        }
+        return parsed;
     }
 
     private ToolResponse parseSnapshotResponse(final String body) {

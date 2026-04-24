@@ -49,6 +49,7 @@ prompt: "Select the specific PAGE you want to snapshot:"
 tool: newrelic
 operation: snapshot
 guid: "${select-page.guid}"
+format: PNG
 
 ## download-image-base64
 condition: "${generate-snapshot.success} == true"
@@ -79,6 +80,6 @@ prompt: |
   Analysis Opinion:
   ${analyze-snapshot.opinion}
   
-  If successful:
-  1. Copy the URL from the response for your records.
-  2. If you want a PNG image instead of a PDF, change '?format=PDF' to '?format=PNG' at the end of the URL.
+  Notes:
+  1. The snapshot was captured in PNG format for better visual analysis.
+  2. You can change 'format: PNG' to 'format: PDF' in the recipe if you prefer a document format.
