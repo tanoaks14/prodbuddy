@@ -124,10 +124,14 @@ public final class NewRelicTool implements Tool {
         com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
         for (int i = 0; i < Math.min(ws.size(), 10); i++) {
             com.fasterxml.jackson.databind.JsonNode w = ws.get(i);
-            com.fasterxml.jackson.databind.JsonNode rcNode = w.path("rawConfiguration");
-            if (rcNode.isMissingNode()) continue;
-            com.fasterxml.jackson.databind.JsonNode config = rcNode.isObject() ? rcNode : mapper.readTree(rcNode.asText());
-            String n = config.path("nrqlQueries").path(0).path("query").asText();
+            String n = w.path("configuration").path("nrqlQueries").path(0).path("query").asText();
+            if (n.isEmpty()) {
+                com.fasterxml.jackson.databind.JsonNode rcNode = w.path("rawConfiguration");
+                if (!rcNode.isMissingNode()) {
+                    com.fasterxml.jackson.databind.JsonNode rc = rcNode.isObject() ? rcNode : mapper.readTree(rcNode.asText());
+                    n = rc.path("nrqlQueries").path(0).path("query").asText();
+                }
+            }
             if (!n.isEmpty()) {
                 if (!req.compareWith().isEmpty() && !n.toLowerCase().contains("compare with")) n += " COMPARE WITH " + req.compareWith();
                 results.add(Map.of("title", w.path("title").asText(), "query", n, "data", client.execute(n, ctx).data()));
@@ -165,7 +169,7 @@ public final class NewRelicTool implements Tool {
     private ToolResponse getDashboard(DashboardRequest request, ToolContext context) {
         if (request.guid().isBlank()) return ToolResponse.failure("NEWRELIC_DASHBOARD_GUID", "guid required");
         String query = "{ actor { entity(guid: \\\"" + request.guid() + "\\\") { name "
-                + "... on DashboardEntity { pages { name guid widgets { title visualization { id } rawConfiguration } } } } } }";
+                + "... on DashboardEntity { pages { name guid widgets { title visualization { id } configuration { nrqlQueries { query } } rawConfiguration } } } } } }";
         return client.query("{\"query\":\"" + query + "\"}", context);
     }
 
