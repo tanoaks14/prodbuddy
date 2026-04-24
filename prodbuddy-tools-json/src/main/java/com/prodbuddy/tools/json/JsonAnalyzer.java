@@ -93,30 +93,55 @@ public final class JsonAnalyzer {
         }
     }
 
-    private JsonNode walk(JsonNode root, String path) {
-        if (path == null || path.isBlank() || "$".equals(path)) {
-            return root;
-        }
-        String[] parts = path.split("\\.");
-        JsonNode current = root;
-        for (String part : parts) {
-            if (current == null) { return null; }
-            if (part.contains("[")) {
-                current = extractArrayIndex(current, part);
-            } else {
-                current = current.path(part);
+    /**
+     * Walk the JSON tree and return result with trace.
+     * @param jsonStr raw JSON
+     * @param path dot path
+     * @return result with trace
+     */
+    public TraceResult walkWithTrace(final String jsonStr, final String path) {
+        List<String> trace = new ArrayList<>();
+        try {
+            JsonNode root = mapper.readTree(jsonStr);
+            trace.add("root");
+            if (path == null || path.isBlank() || "$".equals(path)) {
+                return new TraceResult(root, trace);
             }
+            String[] parts = path.split("\\.");
+            JsonNode current = root;
+            for (String part : parts) {
+                if (current == null || current.isMissingNode()) {
+                    trace.add(part + " -> MISSING (previous node was null)");
+                    return new TraceResult(null, trace);
+                }
+                if (part.contains("[")) {
+                    current = extractArrayIndex(current, part);
+                } else {
+                    current = current.path(part);
+                }
+                if (current == null || current.isMissingNode()) {
+                    trace.add(part + " -> MISSING");
+                    return new TraceResult(null, trace);
+                }
+                trace.add(part + " -> FOUND (" + current.getNodeType() + ")");
+            }
+            return new TraceResult(current, trace);
+        } catch (JsonProcessingException e) {
+            trace.add("ERROR: " + e.getMessage());
+            return new TraceResult(null, trace);
         }
-        return current;
     }
 
-    private JsonNode extractArrayIndex(JsonNode current, String part) {
+    public static record TraceResult(JsonNode node, List<String> trace) { }
+
+    private JsonNode extractArrayIndex(final JsonNode current, final String part) {
         int splitIdx = part.indexOf('[');
         String key = part.substring(0, splitIdx);
         int arrIdx = Integer.parseInt(part.substring(splitIdx + 1, part.length() - 1));
+        JsonNode node = current;
         if (!key.isEmpty()) {
-            current = current.path(key);
+            node = node.path(key);
         }
-        return current.path(arrIdx);
+        return node.path(arrIdx);
     }
 }
