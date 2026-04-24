@@ -104,9 +104,17 @@ public final class NewRelicTool implements Tool {
         if (!dash.success()) return dash;
         try {
             com.fasterxml.jackson.databind.JsonNode root = new com.fasterxml.jackson.databind.ObjectMapper().readTree(String.valueOf(dash.data().get("body")));
-            com.fasterxml.jackson.databind.JsonNode entity = root.path("data").path("actor").path("entity");
-            com.fasterxml.jackson.databind.JsonNode widgets = entity.path("pages").path(0).path("widgets");
-            if (widgets.isMissingNode() || widgets.isEmpty()) widgets = entity.path("widgets");
+            com.fasterxml.jackson.databind.JsonNode pages = root.path("data").path("actor").path("entity").path("pages");
+            com.fasterxml.jackson.databind.JsonNode selectedPage = pages.path(0);
+            if (!req.pageGuid().isEmpty()) {
+                for (com.fasterxml.jackson.databind.JsonNode p : pages) {
+                    if (req.pageGuid().equals(p.path("guid").asText())) {
+                        selectedPage = p;
+                        break;
+                    }
+                }
+            }
+            com.fasterxml.jackson.databind.JsonNode widgets = selectedPage.path("widgets");
             return ToolResponse.ok(Map.of("dashboard", req.guid(), "results", processWidgets(widgets, req, ctx)));
         } catch (Exception e) { return ToolResponse.failure("DASHBOARD_DATA_ERROR", e.getMessage()); }
     }
@@ -154,12 +162,9 @@ public final class NewRelicTool implements Tool {
     }
 
     private ToolResponse getDashboard(DashboardRequest request, ToolContext context) {
-        if (request.guid().isBlank()) {
-            return ToolResponse.failure("NEWRELIC_DASHBOARD_GUID", "guid is required for get_dashboard");
-        }
+        if (request.guid().isBlank()) return ToolResponse.failure("NEWRELIC_DASHBOARD_GUID", "guid required");
         String query = "{ actor { entity(guid: \\\"" + request.guid() + "\\\") { name "
-                + "... on DashboardEntity { pages { name guid widgets { title visualization { id } rawConfiguration } } } "
-                + "... on DashboardPage { widgets { title visualization { id } rawConfiguration } } } } }";
+                + "... on DashboardEntity { pages { name guid widgets { title visualization { id } rawConfiguration } } } } } }";
         return client.query("{\"query\":\"" + query + "\"}", context);
     }
 
@@ -245,7 +250,8 @@ public final class NewRelicTool implements Tool {
         Map<String, Object> p = request.payload();
         return new DashboardRequest(String.valueOf(p.getOrDefault("guid", "")),
                                     String.valueOf(p.getOrDefault("name", "")),
-                                    String.valueOf(p.getOrDefault("compareWith", "")));
+                                    String.valueOf(p.getOrDefault("compareWith", "")),
+                                    String.valueOf(p.getOrDefault("pageGuid", "")));
     }
 
     private ToolResponse runQuery(final NrqlQueryRequest queryRequest, final ToolContext context) {

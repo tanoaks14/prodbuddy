@@ -35,7 +35,8 @@ prompt: "Specify the historical baseline to compare with (e.g., '1 week ago', '2
 ## get-dashboard-data
 tool: newrelic
 operation: get_dashboard_data
-guid: "${select-page.guid}"
+guid: "${select-dashboard.guid}"
+pageGuid: "${select-page.guid}"
 compareWith: "${ask-comparison.answer}"
 
 ## analyze-telemetry
