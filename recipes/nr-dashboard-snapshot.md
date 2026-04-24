@@ -14,51 +14,41 @@ tool: newrelic
 operation: list_dashboards
 name: "${ask-dashboard-name.answer}"
 
-## list-dashboard-options
-tool: agent
-operation: think
-prompt: |
-  I found these dashboards matching "${ask-dashboard-name.answer}":
-  ${search-dashboards.body}
-  
-  Please present these to the user as a clear list of (Name: GUID) so they can pick one.
+## extract-dashboard-list
+tool: json
+operation: extract
+data: "${search-dashboards.body}"
+paths:
+  list: "actor.entitySearch.results.entities"
 
-## ask-dashboard-selection
+## select-dashboard
 tool: interactive
-operation: ask
-prompt: |
-  Available Dashboards:
-  ${list-dashboard-options.opinion}
-  
-  Please enter the GUID of the dashboard you want to snapshot:
+operation: select
+data: "${extract-dashboard-list.list}"
+prompt: "Select a dashboard from the list above:"
 
 ## get-dashboard-pages
 tool: newrelic
 operation: get_dashboard
-guid: "${ask-dashboard-selection.answer}"
+guid: "${select-dashboard.guid}"
 
-## list-page-options
-tool: agent
-operation: think
-prompt: |
-  The dashboard "${ask-dashboard-selection.answer}" has the following pages:
-  ${get-dashboard-pages.body}
-  
-  Please present these to the user as a clear list of (Page Name: Page GUID) so they can pick one.
+## extract-page-list
+tool: json
+operation: extract
+data: "${get-dashboard-pages.body}"
+paths:
+  list: "actor.entity.pages"
 
-## ask-page-selection
+## select-page
 tool: interactive
-operation: ask
-prompt: |
-  Available Pages:
-  ${list-page-options.opinion}
-  
-  Please enter the GUID of the specific PAGE you want to snapshot:
+operation: select
+data: "${extract-page-list.list}"
+prompt: "Select the specific PAGE you want to snapshot:"
 
 ## generate-snapshot
 tool: newrelic
 operation: snapshot
-guid: "${ask-page-selection.answer}"
+guid: "${select-page.guid}"
 
 ## download-image-base64
 condition: "${generate-snapshot.success} == true"
@@ -79,6 +69,8 @@ tool: agent
 operation: think
 prompt: |
   Status Check:
+  - Dashboard: ${select-dashboard.name}
+  - Page: ${select-page.name}
   - Snapshot Success: ${generate-snapshot.success}
   - Image Download: ${download-image-base64.success}
   
