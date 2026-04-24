@@ -103,28 +103,28 @@ public final class NewRelicTool implements Tool {
         ToolResponse dash = getDashboard(req, ctx);
         if (!dash.success()) return dash;
         try {
-            com.fasterxml.jackson.databind.JsonNode root = new com.fasterxml.jackson.databind.ObjectMapper()
-                .readTree(String.valueOf(dash.data().get("body")));
-            com.fasterxml.jackson.databind.JsonNode widgets = root.path("data").path("actor").path("entity").path("pages").path(0).path("widgets");
-            java.util.List<Map<String, Object>> results = new java.util.ArrayList<>();
-            for (int i = 0; i < Math.min(widgets.size(), 10); i++) {
-                com.fasterxml.jackson.databind.JsonNode w = widgets.get(i);
-                String t = w.path("title").asText();
-                String rc = w.path("rawConfiguration").asText();
-                if (rc != null && rc.contains("nrqlQueries")) {
-                    String n = new com.fasterxml.jackson.databind.ObjectMapper().readTree(rc).path("nrqlQueries").path(0).path("query").asText();
-                    if (!n.isEmpty()) {
-                        if (!req.compareWith().isEmpty() && !n.toLowerCase().contains("compare with")) {
-                            n += " COMPARE WITH " + req.compareWith();
-                        }
-                        results.add(Map.of("title", t, "query", n, "data", client.execute(n, ctx).data()));
-                    }
+            com.fasterxml.jackson.databind.JsonNode root = new com.fasterxml.jackson.databind.ObjectMapper().readTree(String.valueOf(dash.data().get("body")));
+            com.fasterxml.jackson.databind.JsonNode entity = root.path("data").path("actor").path("entity");
+            com.fasterxml.jackson.databind.JsonNode widgets = entity.path("pages").path(0).path("widgets");
+            if (widgets.isMissingNode() || widgets.isEmpty()) widgets = entity.path("widgets");
+            return ToolResponse.ok(Map.of("dashboard", req.guid(), "results", processWidgets(widgets, req, ctx)));
+        } catch (Exception e) { return ToolResponse.failure("DASHBOARD_DATA_ERROR", e.getMessage()); }
+    }
+
+    private java.util.List<Map<String, Object>> processWidgets(com.fasterxml.jackson.databind.JsonNode ws, DashboardRequest req, ToolContext ctx) throws Exception {
+        java.util.List<Map<String, Object>> results = new java.util.ArrayList<>();
+        for (int i = 0; i < Math.min(ws.size(), 10); i++) {
+            com.fasterxml.jackson.databind.JsonNode w = ws.get(i);
+            String rc = w.path("rawConfiguration").asText();
+            if (rc != null && rc.contains("nrqlQueries")) {
+                String n = new com.fasterxml.jackson.databind.ObjectMapper().readTree(rc).path("nrqlQueries").path(0).path("query").asText();
+                if (!n.isEmpty()) {
+                    if (!req.compareWith().isEmpty() && !n.toLowerCase().contains("compare with")) n += " COMPARE WITH " + req.compareWith();
+                    results.add(Map.of("title", w.path("title").asText(), "query", n, "data", client.execute(n, ctx).data()));
                 }
             }
-            return ToolResponse.ok(Map.of("dashboard", req.guid(), "results", results));
-        } catch (Exception e) {
-            return ToolResponse.failure("DASHBOARD_DATA_ERROR", "Failed: " + e.getMessage());
         }
+        return results;
     }
 
     private ToolResponse dispatchTelemetry(final String operation, final ToolRequest request, final ToolContext context) {
@@ -157,7 +157,9 @@ public final class NewRelicTool implements Tool {
         if (request.guid().isBlank()) {
             return ToolResponse.failure("NEWRELIC_DASHBOARD_GUID", "guid is required for get_dashboard");
         }
-        String query = "{ actor { entity(guid: \\\"" + request.guid() + "\\\") { name ... on DashboardEntity { pages { name guid widgets { title visualization { id } rawConfiguration } } } } } }";
+        String query = "{ actor { entity(guid: \\\"" + request.guid() + "\\\") { name "
+                + "... on DashboardEntity { pages { name guid widgets { title visualization { id } rawConfiguration } } } "
+                + "... on DashboardPageEntity { widgets { title visualization { id } rawConfiguration } } } } }";
         return client.query("{\"query\":\"" + query + "\"}", context);
     }
 
