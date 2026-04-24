@@ -13,6 +13,7 @@ import com.prodbuddy.context.ConversationContext;
 import com.prodbuddy.core.tool.ToolContext;
 import com.prodbuddy.core.tool.ToolError;
 import com.prodbuddy.orchestrator.AgentLoopOrchestrator;
+import com.prodbuddy.recipes.RecipeToolExecutor;
 import com.prodbuddy.recipes.RecipeDefinition;
 import com.prodbuddy.recipes.RecipeRegistry;
 import com.prodbuddy.recipes.RecipeReport;

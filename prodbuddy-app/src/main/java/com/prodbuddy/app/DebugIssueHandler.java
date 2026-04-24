@@ -6,6 +6,7 @@ import com.prodbuddy.context.ConversationContext;
 import com.prodbuddy.core.tool.ToolContext;
 import com.prodbuddy.core.tool.ToolResponse;
 import com.prodbuddy.orchestrator.AgentLoopOrchestrator;
+import com.prodbuddy.recipes.RecipeToolExecutor;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
