@@ -127,7 +127,7 @@ public final class NewRelicTool implements Tool {
         if (request.guid().isBlank()) {
             return ToolResponse.failure("NEWRELIC_DASHBOARD_GUID", "guid is required for get_dashboard");
         }
-        String query = "{ actor { entity(guid: \\\"" + request.guid() + "\\\") { name ... on DashboardEntity { pages { name widgets { title visualization { id } rawConfiguration } } } } } }";
+        String query = "{ actor { entity(guid: \\\"" + request.guid() + "\\\") { name ... on DashboardEntity { pages { name guid widgets { title visualization { id } rawConfiguration } } } } } }";
         return client.query("{\"query\":\"" + query + "\"}", context);
     }
 
