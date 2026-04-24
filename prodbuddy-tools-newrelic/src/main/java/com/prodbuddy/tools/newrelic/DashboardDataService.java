@@ -34,14 +34,10 @@ public final class DashboardDataService {
         List<Map<String, Object>> results = new ArrayList<>();
         for (int i = 0; i < Math.min(ws.size(), 10); i++) {
             JsonNode w = ws.get(i);
-            String n = w.path("configuration").path("nrqlQueries").path(0).path("query").asText();
-            if (n.isEmpty()) {
-                JsonNode rcNode = w.path("rawConfiguration");
-                if (!rcNode.isMissingNode()) {
-                    JsonNode rc = rcNode.isObject() ? rcNode : mapper.readTree(rcNode.asText());
-                    n = rc.path("nrqlQueries").path(0).path("query").asText();
-                }
-            }
+            JsonNode rcNode = w.path("rawConfiguration");
+            if (rcNode.isMissingNode()) continue;
+            JsonNode rc = rcNode.isObject() ? rcNode : mapper.readTree(rcNode.asText());
+            String n = rc.path("nrqlQueries").path(0).path("query").asText();
             if (!n.isEmpty()) {
                 if (!req.compareWith().isEmpty() && !n.toLowerCase().contains("compare with")) n += " COMPARE WITH " + req.compareWith();
                 ToolResponse res = client.execute(n, ctx);
