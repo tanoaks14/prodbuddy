@@ -19,7 +19,7 @@ tool: json
 operation: extract
 data: "${search-dashboards.body}"
 paths:
-  list: "actor.entitySearch.results.entities"
+  list: "data.actor.entitySearch.results.entities"
 
 ## select-dashboard
 tool: interactive
@@ -37,7 +37,7 @@ tool: json
 operation: extract
 data: "${get-dashboard-pages.body}"
 paths:
-  list: "actor.entity.pages"
+  list: "data.actor.entity.pages"
 
 ## select-page
 tool: interactive

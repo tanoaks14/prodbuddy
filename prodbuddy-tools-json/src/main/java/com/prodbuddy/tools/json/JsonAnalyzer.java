@@ -17,16 +17,12 @@ public final class JsonAnalyzer {
     }
 
     public boolean assertPathEq(String jsonStr, String path, String expected) {
-        try {
-            JsonNode root = mapper.readTree(jsonStr);
-            JsonNode node = walk(root, path);
-            if (node == null || node.isMissingNode()) {
-                return false;
-            }
-            return expected.equals(node.asText());
-        } catch (JsonProcessingException e) {
+        TraceResult tr = walkWithTrace(jsonStr, path);
+        JsonNode node = tr.node();
+        if (node == null || node.isMissingNode()) {
             return false;
         }
+        return expected.equals(node.asText());
     }
 
     public List<String> searchKey(String jsonStr, String key) {
@@ -42,21 +38,16 @@ public final class JsonAnalyzer {
 
     public Map<String, Object> extract(String jsonStr, Map<String, String> paths, Map<String, String> regexList) {
         Map<String, Object> results = new java.util.HashMap<>();
-        try {
-            JsonNode root = mapper.readTree(jsonStr);
-            if (paths != null) {
-                for (Map.Entry<String, String> entry : paths.entrySet()) {
-                    JsonNode node = walk(root, entry.getValue());
-                    if (node != null && !node.isMissingNode()) {
-                        results.put(entry.getKey(), node.isContainerNode() ? node.toString() : node.asText());
-                    }
+        if (paths != null) {
+            for (Map.Entry<String, String> entry : paths.entrySet()) {
+                TraceResult tr = walkWithTrace(jsonStr, entry.getValue());
+                if (tr.node() != null && !tr.node().isMissingNode()) {
+                    results.put(entry.getKey(), tr.node().isContainerNode() ? tr.node().toString() : tr.node().asText());
                 }
             }
-            if (regexList != null) {
-                extractRegex(jsonStr, regexList, results);
-            }
-        } catch (JsonProcessingException e) {
-            // partly filled
+        }
+        if (regexList != null) {
+            extractRegex(jsonStr, regexList, results);
         }
         return results;
     }
@@ -99,6 +90,12 @@ public final class JsonAnalyzer {
      * @param path dot path
      * @return result with trace
      */
+    /**
+     * Walk the JSON tree and return result with trace.
+     * @param jsonStr raw JSON
+     * @param path dot path
+     * @return result with trace
+     */
     public TraceResult walkWithTrace(final String jsonStr, final String path) {
         List<String> trace = new ArrayList<>();
         try {
@@ -107,29 +104,38 @@ public final class JsonAnalyzer {
             if (path == null || path.isBlank() || "$".equals(path)) {
                 return new TraceResult(root, trace);
             }
-            String[] parts = path.split("\\.");
-            JsonNode current = root;
-            for (String part : parts) {
-                if (current == null || current.isMissingNode()) {
-                    trace.add(part + " -> MISSING (previous node was null)");
-                    return new TraceResult(null, trace);
-                }
-                if (part.contains("[")) {
-                    current = extractArrayIndex(current, part);
-                } else {
-                    current = current.path(part);
-                }
-                if (current == null || current.isMissingNode()) {
-                    trace.add(part + " -> MISSING");
-                    return new TraceResult(null, trace);
-                }
-                trace.add(part + " -> FOUND (" + current.getNodeType() + ")");
-            }
-            return new TraceResult(current, trace);
+            return walkPathParts(root, path.split("\\."), trace);
         } catch (JsonProcessingException e) {
             trace.add("ERROR: " + e.getMessage());
             return new TraceResult(null, trace);
         }
+    }
+
+    private TraceResult walkPathParts(final JsonNode root, final String[] parts,
+                                      final List<String> trace) {
+        JsonNode current = root;
+        for (String part : parts) {
+            current = walkStep(current, part, trace);
+            if (current == null || current.isMissingNode()) {
+                return new TraceResult(null, trace);
+            }
+        }
+        return new TraceResult(current, trace);
+    }
+
+    private JsonNode walkStep(final JsonNode node, final String part,
+                              final List<String> trace) {
+        if (node == null || node.isMissingNode()) {
+            trace.add(part + " -> MISSING (previous node was null)");
+            return null;
+        }
+        JsonNode next = part.contains("[") ? extractArrayIndex(node, part) : node.path(part);
+        if (next == null || next.isMissingNode()) {
+            trace.add(part + " -> MISSING");
+            return null;
+        }
+        trace.add(part + " -> FOUND (" + next.getNodeType() + ")");
+        return next;
     }
 
     public static record TraceResult(JsonNode node, List<String> trace) { }
