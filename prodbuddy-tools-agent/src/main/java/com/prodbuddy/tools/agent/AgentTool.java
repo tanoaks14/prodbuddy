@@ -196,7 +196,7 @@ public final class AgentTool implements Tool {
             sb.append("Task: ").append(custom).append("\n");
         }
         request.payload().forEach((k, v) -> {
-            if (!"prompt".equals(k)) {
+            if (!"prompt".equals(k) && !"image".equals(k) && !"images".equals(k)) {
                 sb.append("- ").append(k).append(": ").append(v).append("\n");
             }
         });
