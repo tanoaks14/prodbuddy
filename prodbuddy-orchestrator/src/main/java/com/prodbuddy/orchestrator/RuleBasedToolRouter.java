@@ -9,8 +9,14 @@ import com.prodbuddy.observation.Slf4jSequenceLogger;
 
 public final class RuleBasedToolRouter implements ToolRouter {
 
+    /**
+     * Logger for sequence events.
+     */
     private final SequenceLogger seqLog;
 
+    /**
+     * Default constructor.
+     */
     public RuleBasedToolRouter() {
         this.seqLog = new Slf4jSequenceLogger(RuleBasedToolRouter.class);
     }
@@ -56,14 +62,37 @@ public final class RuleBasedToolRouter implements ToolRouter {
         if (isSystemIntent(intent)) {
             return Optional.of("system");
         }
+        Optional<String> res = evaluateDevRoute(intent);
+        if (res.isPresent()) {
+            return res;
+        }
+        return evaluateUtilityRoute(intent);
+    }
+
+    private Optional<String> evaluateDevRoute(final String intent) {
         if (isCodeIntent(intent)) {
             return Optional.of("codecontext");
         }
-        if (isHttpIntent(intent)) {
-            return Optional.of("http");
-        }
         if (isKubectlIntent(intent)) {
             return Optional.of("kubectl");
+        }
+        if (intent.contains("git") || intent.contains("diff")) {
+            return Optional.of("git");
+        }
+        return Optional.empty();
+    }
+
+    private Optional<String> evaluateUtilityRoute(final String intent) {
+        Optional<String> apiRes = evaluateApiRoute(intent);
+        if (apiRes.isPresent()) {
+            return apiRes;
+        }
+        return evaluateAgentRoute(intent);
+    }
+
+    private Optional<String> evaluateApiRoute(final String intent) {
+        if (isHttpIntent(intent)) {
+            return Optional.of("http");
         }
         if (isGraphQLIntent(intent)) {
             return Optional.of("graphql");
@@ -71,8 +100,21 @@ public final class RuleBasedToolRouter implements ToolRouter {
         if (intent.contains("json") || intent.contains("parse")) {
             return Optional.of("json");
         }
+        return Optional.empty();
+    }
+
+    private Optional<String> evaluateAgentRoute(final String intent) {
         if (intent.contains("agent") || intent.contains("think")) {
             return Optional.of("agent");
+        }
+        if (intent.contains("date") || intent.contains("time")) {
+            return Optional.of("datetime");
+        }
+        if (intent.contains("ask") || intent.contains("interactive")) {
+            return Optional.of("interactive");
+        }
+        if (intent.contains("recipe")) {
+            return Optional.of("recipe");
         }
         return Optional.empty();
     }

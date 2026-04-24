@@ -12,6 +12,7 @@ import com.prodbuddy.observation.Slf4jSequenceLogger;
 
 public final class OllamaAgentClient {
 
+    private static final int REQUEST_TIMEOUT_SEC = 60;
     private final HttpClient client;
     private final SequenceLogger seqLog;
 
@@ -20,28 +21,73 @@ public final class OllamaAgentClient {
         this.seqLog = new Slf4jSequenceLogger(OllamaAgentClient.class);
     }
 
-    public String generate(String prompt, AgentConfig config) {
-        seqLog.logSequence("Client", "OllamaAgentClient", "generate", "Sending prompt to LLM");
-        String effectivePrompt = withFunctionCallingInstructions(prompt, config);
-        boolean thinking = config.thinkingEnabled()
-                || (config.functionCallingEnabled() && config.functionCallingWithThinking());
-        String body = "{\"model\":\"" + escapeJson(config.model()) + "\",\"prompt\":\""
-                + escapeJson(effectivePrompt) + "\",\"stream\":" + config.streamEnabled()
-                + ",\"think\":" + thinking + "}";
+    /**
+     * Generate response from prompt.
+     * @param prompt the text prompt
+     * @param config the agent config
+     * @return the LLM response
+     */
+    public String generate(final String prompt, final AgentConfig config) {
+        return generate(prompt, java.util.Collections.emptyList(), config);
+    }
+
+    /**
+     * Generate response from prompt with images.
+     * @param prompt the text prompt
+     * @param images list of base64 image strings
+     * @param config the agent config
+     * @return the LLM response
+     */
+    public String generate(final String prompt,
+                           final java.util.List<String> images,
+                           final AgentConfig config) {
+        seqLog.logSequence("Client", "OllamaAgentClient", "generate",
+                "Sending prompt to LLM (multimodal=" + !images.isEmpty() + ")");
+        String body = buildRequestBody(prompt, images, config);
         HttpRequest.Builder builder = HttpRequest.newBuilder()
                 .uri(URI.create(config.baseUrl() + config.chatPath()))
-                .timeout(Duration.ofSeconds(60))
+                .timeout(Duration.ofSeconds(REQUEST_TIMEOUT_SEC))
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(body));
+
         if (config.authEnabled() && !config.apiKey().isBlank()) {
             builder.header("Authorization", "Bearer " + config.apiKey());
         }
+        return executeRequest(builder.build());
+    }
+
+    private String buildRequestBody(final String prompt,
+                                    final java.util.List<String> images,
+                                    final AgentConfig config) {
+        String effectivePrompt = withFunctionCallingInstructions(prompt, config);
+        boolean thinking = config.thinkingEnabled()
+                || (config.functionCallingEnabled()
+                && config.functionCallingWithThinking());
+
+        StringBuilder body = new StringBuilder();
+        body.append("{")
+            .append("\"model\":\"").append(escapeJson(config.model())).append("\",")
+            .append("\"prompt\":\"").append(escapeJson(effectivePrompt)).append("\",")
+            .append("\"stream\":").append(config.streamEnabled()).append(",")
+            .append("\"think\":").append(thinking);
+
+        if (!images.isEmpty()) {
+            body.append(",\"images\":[").append(String.join(",", images.stream()
+                .map(i -> "\"" + i + "\"").toList())).append("]");
+        }
+        return body.append("}").toString();
+    }
+
+    private String executeRequest(final HttpRequest request) {
         try {
-            HttpResponse<String> response = client.send(builder.build(), HttpResponse.BodyHandlers.ofString());
-            seqLog.logSequence("OllamaAgentClient", "Client", "generate", "LLM Responded: " + response.statusCode());
+            HttpResponse<String> response = client.send(request,
+                    HttpResponse.BodyHandlers.ofString());
+            seqLog.logSequence("OllamaAgentClient", "Client", "execute",
+                    "LLM Responded: " + response.statusCode());
             return normalizeResponseBody(response.body());
         } catch (IOException | InterruptedException exception) {
-            seqLog.logSequence("OllamaAgentClient", "Client", "generate", "LLM Failed");
+            seqLog.logSequence("OllamaAgentClient", "Client", "execute",
+                    "LLM Failed");
             if (exception instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }

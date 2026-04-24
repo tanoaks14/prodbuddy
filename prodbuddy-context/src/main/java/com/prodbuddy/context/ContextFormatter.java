@@ -13,7 +13,7 @@ import java.util.Map;
  */
 public final class ContextFormatter {
 
-    private static final int MAX_FIELD_LEN = 600;
+    private static final int MAX_FIELD_LEN = 5000;
 
     private ContextFormatter() {
     }

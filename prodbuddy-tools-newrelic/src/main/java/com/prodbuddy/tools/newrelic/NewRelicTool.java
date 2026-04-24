@@ -62,19 +62,43 @@ public final class NewRelicTool implements Tool {
         }
     }
 
-    private ToolResponse dispatch(ToolRequest request, ToolContext context) {
+    private ToolResponse dispatch(final ToolRequest request, final ToolContext context) {
         String operation = request.operation().toLowerCase();
+        
+        ToolResponse sys = dispatchSystem(operation, request, context);
+        if (sys != null) return sys;
+        
+        ToolResponse ent = dispatchEntity(operation, request, context);
+        if (ent != null) return ent;
+        
+        return dispatchTelemetry(operation, request, context);
+    }
+
+    private ToolResponse dispatchSystem(final String operation, final ToolRequest request, final ToolContext context) {
         return switch (operation) {
             case "scenarios" -> listScenarios();
             case "validate" -> validate(request);
-            case "query_metrics", "query" -> runQuery(requestFrom(request), context);
+            case "gql_query" -> client.query(String.valueOf(request.payload().getOrDefault("graphqlBody", "")), context);
+            default -> null;
+        };
+    }
+
+    private ToolResponse dispatchEntity(final String operation, final ToolRequest request, final ToolContext context) {
+        return switch (operation) {
             case "list_dashboards" -> listDashboards(dashboardRequestFrom(request), context);
             case "get_dashboard" -> getDashboard(dashboardRequestFrom(request), context);
             case "list_apps" -> listApplications(request, context);
             case "list_external_services" -> listExternalServices(request, context);
+            case "snapshot" -> createSnapshot(request, context);
+            default -> null;
+        };
+    }
+
+    private ToolResponse dispatchTelemetry(final String operation, final ToolRequest request, final ToolContext context) {
+        return switch (operation) {
+            case "query_metrics", "query" -> runQuery(requestFrom(request), context);
             case "get_trace" -> getTrace(traceRequestFrom(request), context);
-            case "gql_query" -> client.query(String.valueOf(request.payload().getOrDefault("graphqlBody", "")), context);
-            default -> ToolResponse.failure("NEWRELIC_OPERATION", "supported ops: scenarios, query, list_dashboards, get_dashboard, get_trace, etc.");
+            default -> ToolResponse.failure("NEWRELIC_OPERATION", "supported ops: scenarios, query, list_dashboards, get_dashboard, get_trace, snapshot, etc.");
         };
     }
 
@@ -119,72 +143,110 @@ public final class NewRelicTool implements Tool {
         return client.query("{\"query\":\"" + query + "\"}", context);
     }
 
-    private ToolResponse getTrace(TraceRequest request, ToolContext context) {
+    private static final int DEFAULT_TIME_WINDOW = 5;
+    private static final int MINUTES_PER_HOUR = 60;
+    private static final int DEFAULT_LIMIT = 100;
+
+    private ToolResponse getTrace(final TraceRequest request, final ToolContext context) {
         if (request.traceId().isBlank()) {
-            return ToolResponse.failure("NEWRELIC_TRACE_ID", "traceId is required for get_trace");
+            return ToolResponse.failure("NEWRELIC_TRACE_ID",
+                "traceId is required for get_trace");
         }
-        String query = "{ actor { distributedTracing { trace(id: \\\"" + request.traceId() + "\\\") { spans { id parentSpanId serviceName operationName durationMs timestamp } } } } }";
+        String query = "{ actor { distributedTracing { trace(id: \\\""
+            + request.traceId() + "\\\") { spans { id parentSpanId serviceName "
+            + "operationName durationMs timestamp } } } } }";
         return client.query("{\"query\":\"" + query + "\"}", context);
     }
 
-    private TraceRequest traceRequestFrom(ToolRequest request) {
-        return new TraceRequest(String.valueOf(request.payload().getOrDefault("traceId", "")));
+    private ToolResponse createSnapshot(final ToolRequest request, final ToolContext context) {
+        String guid = String.valueOf(request.payload().getOrDefault("guid", ""));
+        if (guid.isBlank()) {
+            return ToolResponse.failure("NEWRELIC_SNAPSHOT_GUID",
+                "guid is required for snapshot (use a dashboard page GUID)");
+        }
+        String query = "mutation { dashboardCreateSnapshotURL(guid: \\\""
+            + guid + "\\\") }";
+        return client.query("{\"query\":\"" + query + "\"}", context);
     }
 
-    private DashboardRequest dashboardRequestFrom(ToolRequest request) {
+    private TraceRequest traceRequestFrom(final ToolRequest request) {
+        return new TraceRequest(String.valueOf(
+            request.payload().getOrDefault("traceId", "")));
+    }
+
+    private DashboardRequest dashboardRequestFrom(final ToolRequest request) {
         String guid = String.valueOf(request.payload().getOrDefault("guid", ""));
         String name = String.valueOf(request.payload().getOrDefault("name", ""));
         return new DashboardRequest(guid, name);
     }
 
-    private ToolResponse runQuery(NrqlQueryRequest queryRequest, ToolContext context) {
+    private ToolResponse runQuery(final NrqlQueryRequest queryRequest, final ToolContext context) {
         ToolResponse validation = validator.validate(queryRequest);
         if (validation != null) {
-            seqLog.logSequence("newrelic", "AgentLoopOrchestrator", "runQuery", "Validation failed");
+            seqLog.logSequence("newrelic", "AgentLoopOrchestrator",
+                "runQuery", "Validation failed");
             return validation;
         }
 
         String nrql = queryBuilder.build(queryRequest);
-        seqLog.logSequence("newrelic", "NewRelicAPI", "runQuery", "Executing NRQL query");
+        seqLog.logSequence("newrelic", "NewRelicAPI", "runQuery",
+            "Executing NRQL query");
         ToolResponse result = client.execute(nrql, context);
-        seqLog.logSequence("NewRelicAPI", "newrelic", "runQuery", "Query complete: " + result.success());
+        seqLog.logSequence("NewRelicAPI", "newrelic", "runQuery",
+            "Query complete: " + result.success());
         return result;
     }
 
-    private NrqlQueryRequest requestFrom(ToolRequest request) {
-        Object m = request.payload().get("metric");
-        if (m == null) m = request.payload().get("metric_name");
-        if (m == null) m = request.payload().get("scenario");
-        
-        String metric = (m != null) ? String.valueOf(m) : "default";
-        
-        int window = intFrom(request.payload(), "timeWindowMinutes", 5);
-        if (request.payload().containsKey("time_window")) {
-            // Basic parsing for "last X hours" or "X"
-            String tw = String.valueOf(request.payload().get("time_window")).toLowerCase();
+    private NrqlQueryRequest requestFrom(final ToolRequest request) {
+        String metric = parseMetric(request.payload());
+        int window = parseTimeWindow(request.payload());
+        int limit = intFrom(request.payload(), "limit", DEFAULT_LIMIT);
+        String groupBy = String.valueOf(request.payload()
+            .getOrDefault("groupBy", ""));
+        Map<String, String> filters = filtersFrom(request.payload()
+            .get("filters"));
+        return new NrqlQueryRequest(metric, filters, window, limit, groupBy);
+    }
+
+    private String parseMetric(final Map<String, Object> payload) {
+        Object m = payload.get("metric");
+        if (m == null) {
+            m = payload.get("metric_name");
+        }
+        if (m == null) {
+            m = payload.get("scenario");
+        }
+        return (m != null) ? String.valueOf(m) : "default";
+    }
+
+    private int parseTimeWindow(final Map<String, Object> payload) {
+        int window = intFrom(payload, "timeWindowMinutes", DEFAULT_TIME_WINDOW);
+        if (payload.containsKey("time_window")) {
+            String tw = String.valueOf(payload.get("time_window")).toLowerCase();
             if (tw.contains("hour")) {
-                window = Integer.parseInt(tw.replaceAll("[^0-9]", "")) * 60;
+                window = Integer.parseInt(tw.replaceAll("[^0-9]", ""))
+                    * MINUTES_PER_HOUR;
             } else {
-                try { window = Integer.parseInt(tw.replaceAll("[^0-9]", "")); } catch (Exception e) {}
+                try {
+                    window = Integer.parseInt(tw.replaceAll("[^0-9]", ""));
+                } catch (Exception e) {
+                    // Ignore
+                }
             }
         }
-
-        int limit = intFrom(request.payload(), "limit", 100);
-        String groupBy = String.valueOf(request.payload().getOrDefault("groupBy", ""));
-        Map<String, String> filters = filtersFrom(request.payload().get("filters"));
-        return new NrqlQueryRequest(metric, filters, window, limit, groupBy);
+        return window;
     }
 
 
     @SuppressWarnings("unchecked")
-    private Map<String, String> filtersFrom(Object value) {
+    private Map<String, String> filtersFrom(final Object value) {
         if (value instanceof Map<?, ?> map) {
             return (Map<String, String>) map;
         }
         return Map.of();
     }
 
-    private int intFrom(Map<String, Object> payload, String key, int defaultValue) {
+    private int intFrom(final Map<String, Object> payload, final String key, final int defaultValue) {
         Object value = payload.getOrDefault(key, defaultValue);
         return Integer.parseInt(String.valueOf(value));
     }

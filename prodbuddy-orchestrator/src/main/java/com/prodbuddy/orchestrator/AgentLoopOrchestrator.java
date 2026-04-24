@@ -15,66 +15,114 @@ import com.prodbuddy.observation.Slf4jSequenceLogger;
 
 public final class AgentLoopOrchestrator {
 
+    /** Tool registry. */
     private final ToolRegistry registry;
+    /** Tool router. */
     private final ToolRouter router;
+    /** Loop configuration. */
     private final LoopConfig config;
+    /** Sequence logger. */
     private final SequenceLogger seqLog;
 
-    public AgentLoopOrchestrator(ToolRegistry registry, ToolRouter router, LoopConfig config) {
-        this.registry = registry;
-        this.router = router;
-        this.config = config;
+    /**
+     * Constructs a new orchestrator.
+     * @param theRegistry the tool registry
+     * @param theRouter the tool router
+     * @param theConfig the loop configuration
+     */
+    public AgentLoopOrchestrator(
+            final ToolRegistry theRegistry,
+            final ToolRouter theRouter,
+            final LoopConfig theConfig
+    ) {
+        this.registry = theRegistry;
+        this.router = theRouter;
+        this.config = theConfig;
         this.seqLog = new Slf4jSequenceLogger(AgentLoopOrchestrator.class);
     }
 
+    /** @return the tool registry. */
     public ToolRegistry registry() {
         return registry;
     }
 
-    public ToolResponse run(ToolRequest initialRequest, ToolContext context) {
-        seqLog.logSequence("Client", "AgentLoopOrchestrator", "run", "Started Orchestration");
+    /**
+     * Runs the orchestration loop.
+     * @param initialRequest the initial request
+     * @param context the tool context
+     * @return the tool response
+     */
+    public ToolResponse run(
+            final ToolRequest initialRequest,
+            final ToolContext context
+    ) {
+        seqLog.logSequence("Client", "AgentLoopOrchestrator",
+                "run", "Started Orchestration");
         Instant started = Instant.now();
 
-        for (int iteration = 1; iteration <= config.maxIterations(); iteration++) {
+        for (int iteration = 1; iteration <= config.maxIterations();
+             iteration++) {
             if (Instant.now().isAfter(started.plus(config.totalTimeout()))) {
-                seqLog.logSequence("AgentLoopOrchestrator", "Client", "run", "Timeout");
-                return ToolResponse.failure("LOOP_TIMEOUT", "total loop timeout exceeded");
+                seqLog.logSequence("AgentLoopOrchestrator", "Client",
+                        "run", "Timeout");
+                return ToolResponse.failure("LOOP_TIMEOUT",
+                        "total loop timeout exceeded");
             }
-            ToolResponse resp = executeIteration(initialRequest, context, iteration);
+            ToolResponse resp = executeIteration(initialRequest, context,
+                    iteration);
             if (resp != null) {
                 return resp;
             }
         }
 
-        seqLog.logSequence("AgentLoopOrchestrator", "Client", "run", "Max iterations exceeded");
-        return ToolResponse.failure("MAX_ITERATIONS", "max iterations exceeded");
+        seqLog.logSequence("AgentLoopOrchestrator", "Client", "run",
+                "Max iterations exceeded");
+        return ToolResponse.failure("MAX_ITERATIONS",
+                "max iterations exceeded");
     }
 
-    private ToolResponse executeIteration(ToolRequest request, ToolContext ctx, int iter) {
-        seqLog.logSequence("AgentLoopOrchestrator", "ToolRouter", "route", "Evaluating request");
-        Optional<String> targetTool = router.route(request);
-        if (targetTool.isEmpty()) {
-            seqLog.logSequence("ToolRouter", "AgentLoopOrchestrator", "route", "Routing failed");
-            return ToolResponse.failure("ROUTING_FAILED", "no tool route for request intent");
+    private ToolResponse executeIteration(
+            final ToolRequest request,
+            final ToolContext ctx,
+            final int iter
+    ) {
+        seqLog.logSequence("AgentLoopOrchestrator", "ToolRouter",
+                "route", "Evaluating request");
+        Optional<String> target = router.route(request);
+        if (target.isEmpty()) {
+            return ToolResponse.failure("ROUTING_FAILED",
+                    "no tool route for request intent");
         }
-        seqLog.logSequence("ToolRouter", "AgentLoopOrchestrator", "route", "Target: " + targetTool.get());
 
-        seqLog.logSequence("AgentLoopOrchestrator", "ToolRegistry", "find", "Look up: " + targetTool.get());
-        Optional<Tool> tool = registry.find(targetTool.get());
+        Optional<Tool> tool = registry.find(target.get());
         if (tool.isEmpty()) {
-            seqLog.logSequence("ToolRegistry", "AgentLoopOrchestrator", "find", "Not Found");
-            return ToolResponse.failure("TOOL_NOT_FOUND", "tool not registered: " + targetTool.get());
+            return ToolResponse.failure("TOOL_NOT_FOUND",
+                    "tool not registered: " + target.get());
         }
 
-        seqLog.logSequence("AgentLoopOrchestrator", targetTool.get(), "execute", "Executing tool");
-        ToolResponse response = tool.get().execute(request, ctx);
-        seqLog.logSequence(targetTool.get(), "AgentLoopOrchestrator", "execute", "Success: " + response.success());
-        
+        return invokeTool(tool.get(), target.get(), request, ctx, iter);
+    }
+
+    private ToolResponse invokeTool(
+            final Tool tool,
+            final String target,
+            final ToolRequest request,
+            final ToolContext ctx,
+            final int iter
+    ) {
+        seqLog.logSequence("AgentLoopOrchestrator", target,
+                "execute", "Executing tool");
+        ToolResponse response = tool.execute(request, ctx);
+        seqLog.logSequence(target, "AgentLoopOrchestrator",
+                "execute", "Success: " + response.success());
+
         if (!response.success()) {
             return response;
         }
 
-        seqLog.logSequence("AgentLoopOrchestrator", "Client", "run", "Successfully finished");
-        return ToolResponse.ok(Map.of("iteration", iter, "tool", targetTool.get(), "result", response.data()));
+        seqLog.logSequence("AgentLoopOrchestrator", "Client", "run",
+                "Successfully finished");
+        return ToolResponse.ok(Map.of("iteration", iter,
+                "tool", target, "result", response.data()));
     }
 }

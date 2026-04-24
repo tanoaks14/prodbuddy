@@ -4,21 +4,30 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Builder for NRQL query strings.
+ */
 public final class NrqlQueryBuilder {
 
-    public String build(NrqlQueryRequest request) {
+    /**
+     * Builds a NRQL query from a request.
+     * @param request the query request
+     * @return the NRQL string
+     */
+    public String build(final NrqlQueryRequest request) {
         StringBuilder nrql = new StringBuilder();
         nrql.append(selectForMetric(request.metric()));
         nrql.append(" FROM ").append(eventForMetric(request.metric()));
         appendFilters(nrql, request.filters());
         nrql.append(" TIMESERIES");
-        nrql.append(" SINCE ").append(request.timeWindowMinutes()).append(" minutes ago");
+        nrql.append(" SINCE ").append(request.timeWindowMinutes())
+            .append(" minutes ago");
         appendGroupBy(nrql, request.groupBy());
         nrql.append(" LIMIT ").append(request.limit());
         return nrql.toString();
     }
 
-    private String selectForMetric(String metric) {
+    private String selectForMetric(final String metric) {
         return switch (metric) {
             case "errors" ->
                 "SELECT count(*)";
@@ -35,8 +44,7 @@ public final class NrqlQueryBuilder {
         };
     }
 
-
-    private String eventForMetric(String metric) {
+    private String eventForMetric(final String metric) {
         return switch (metric) {
             case "errors" ->
                 "TransactionError";
@@ -45,25 +53,26 @@ public final class NrqlQueryBuilder {
         };
     }
 
-    private void appendFilters(StringBuilder nrql, Map<String, String> filters) {
+    private void appendFilters(final StringBuilder nrql, final Map<String, String> filters) {
         if (filters.isEmpty()) {
             return;
         }
         List<String> expressions = new ArrayList<>();
         for (Map.Entry<String, String> entry : filters.entrySet()) {
-            expressions.add(entry.getKey() + " = '" + sanitize(entry.getValue()) + "'");
+            expressions.add(entry.getKey() + " = '"
+                + sanitize(entry.getValue()) + "'");
         }
         nrql.append(" WHERE ").append(String.join(" AND ", expressions));
     }
 
-    private void appendGroupBy(StringBuilder nrql, String groupBy) {
+    private void appendGroupBy(final StringBuilder nrql, final String groupBy) {
         if (groupBy == null || groupBy.isBlank()) {
             return;
         }
         nrql.append(" FACET ").append(groupBy);
     }
 
-    private String sanitize(String value) {
+    private String sanitize(final String value) {
         return value.replace("'", "");
     }
 }

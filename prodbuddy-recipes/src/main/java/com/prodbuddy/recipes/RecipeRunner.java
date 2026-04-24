@@ -23,8 +23,16 @@ public final class RecipeRunner {
     private final RecipeVarResolver resolver = new RecipeVarResolver();
     private final LogicEvaluator evaluator = new LogicEvaluator();
     private final SequenceLogger seqLog = new Slf4jSequenceLogger(RecipeRunner.class);
+    private RecipeRegistry registry;
 
-    public RecipeRunResult run(RecipeDefinition recipe, String fullRecipeContent, ToolContext context, RecipeToolExecutor executor) {
+    public RecipeRunResult run(
+            final RecipeDefinition recipe,
+            final String fullRecipeContent,
+            final ToolContext context,
+            final RecipeToolExecutor executor
+    ) {
+        this.registry = RecipeRegistry.loadFrom(java.nio.file.Path.of(
+                context.envOrDefault("RECIPES_DIR", "recipes")));
         seqLog.logSequence("RecipeCliHandler", "RecipeRunner", "run", "Running recipe: " + recipe.name());
         Map<String, ToolResponse> stepData = new LinkedHashMap<>();
         List<RecipeStepResult> results = new ArrayList<>();
@@ -66,9 +74,48 @@ public final class RecipeRunner {
         Map<String, Object> resolved = resolver.resolveAll(step.rawParams(), context, stepData, mutableLocal);
         String tool = resolver.resolve(step.tool(), context, stepData, mutableLocal);
         String operation = resolver.resolve(step.operation(), context, stepData, mutableLocal);
+
+        if ("recipe".equals(tool) && "run".equals(operation)) {
+            return runSubRecipe(step, resolved, context, executor,
+                    stepData, mutableLocal);
+        }
+
         ToolRequest request = buildRequest(tool, operation, resolved);
         ToolResponse response = safeExecute(executor, request, context);
         return new RecipeStepResult(step.name(), tool, operation, resolved, response);
+    }
+
+    private RecipeStepResult runSubRecipe(
+            final RecipeStep step,
+            final Map<String, Object> resolved,
+            final ToolContext context,
+            final RecipeToolExecutor executor,
+            final Map<String, ToolResponse> stepData,
+            final Map<String, Object> localVars
+    ) {
+        String subName = String.valueOf(resolved.get("name"));
+        RecipeDefinition sub = registry.findByName(subName);
+        if (sub == null) {
+            return new RecipeStepResult(step.name(), "recipe", "run", resolved,
+                    ToolResponse.failure("RECIPE_NOT_FOUND", subName));
+        }
+
+        seqLog.logSequence("RecipeRunner", "SubRecipe", "run", "Entering: " + subName);
+        List<RecipeStepResult> subResults = new ArrayList<>();
+        for (RecipeStep subStep : sub.steps()) {
+            if (!shouldRun(subStep, context, stepData, localVars)) {
+                continue;
+            }
+            RecipeStepResult res = runStep(subStep, context, executor,
+                    stepData, localVars, "");
+            subResults.add(res);
+            stepData.put(subStep.name(), res.response());
+        }
+        seqLog.logSequence("SubRecipe", "RecipeRunner", "run", "Exited: " + subName);
+
+        return new RecipeStepResult(step.name(), "recipe", "run", resolved,
+                ToolResponse.ok(Map.of("sub_recipe", subName,
+                        "steps_executed", subResults.size())));
     }
 
     private boolean executeLoop(

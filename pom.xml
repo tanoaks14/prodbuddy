@@ -28,6 +28,8 @@
         <module>prodbuddy-tools-git</module>
         <module>prodbuddy-tools-agent</module>
         <module>prodbuddy-tools-graphql</module>
+        <module>prodbuddy-tools-interactive</module>
+        <module>prodbuddy-tools-datetime</module>
     </modules>
 
 

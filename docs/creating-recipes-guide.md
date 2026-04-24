@@ -41,7 +41,14 @@ A **Recipe** is a sequence of diagnostic steps executed by the ProdBuddy Orchest
 - **Compose Keys**: `index`, `host`, `source`, `sourcetype`, `terms`.
 
 ### **New Relic (`newrelic`)**
-- **Operations**: `query`, `query_metrics`, `list_apps`, `list_external_services`, `get_trace`, `list_dashboards`, `get_dashboard`, `gql_query`.
+- **Operations**:
+    - `query`: Run custom NRQL queries (returns JSON data).
+    - `list_dashboards`: Search for dashboards and get GUIDs.
+    - `get_dashboard`: Get widget details and page GUIDs for a dashboard.
+    - `snapshot`: Generate a temporary URL for a dashboard page image.
+        - Parameters: `guid` (Dashboard Page GUID).
+        - Note: You can modify the returned URL's `?format=PDF` to `?format=PNG` to get an image.
+    - `get_trace`: Retrieve distributed tracing details by Trace ID.
 - **Keys**: `metric`, `metric_name`, `scenario`, `time_window` (e.g. "last 1 hour"), `limit`, `filters` (Map), `groupBy`, `guid`, `traceId`, `graphqlBody`.
 
 ### **Elasticsearch (`elasticsearch`)**
@@ -57,24 +64,50 @@ A **Recipe** is a sequence of diagnostic steps executed by the ProdBuddy Orchest
 - **Keys**: `startMethodId`, `direction` (UP/DOWN), `maxDepth`, `query`, `sql`, `className`, `topN`, `symptom`.
 
 ### **JSON (`json`)**
-- **Operations**: `extract`, `assert`, `search`.
+- **Operations**: `extract`, `assert`, `search`, `parse`.
 - **Keys**: `data`, `path`, `expected`, `paths` (Map), `regex` (Map), `query`.
 
-### **HTTP (`http`)**
-- **Operations**: `get`, `post`, `put`, `patch`, `delete`, `head`.
-- **Keys**: `url`, `method`, `body`, `contentType`, `authEnabled`, `bearerToken`.
-
-### **Git (`git`)**
-- **Operations**: `diff`, `status`, `log`.
-- **Keys**: `base`, `count`.
+### **HTTP / API (`http`)**
+- **Operations**: `get`, `post`, `put`, `patch`, `delete`, `download_base64`.
+- **Keys**: `url`, `method`, `body`, `headers` (Map), `authEnabled`, `bearerToken`, `noTruncate`, `maxOutputChars`.
+- **Note**: `download_base64` returns binary content as a Base64 string in the `base64` field.
 
 ### **Agent (`agent`)**
-- **Operations**: `think`, `generate_recipe`, `validate_recipe`.
-- **Keys**: `prompt`, `objective`, `recipe` (content).
+- **Operations**: `think`, `extract`, `wait`, `loop`, `generate_recipe`, `validate_recipe`.
+- **Keys**: `prompt`, `image` (Base64 string for multimodal analysis), `objective`, `target`, `data`, `seconds`, `tools` (List).
+
+### **DateTime (`datetime`)**
+- **Operations**: `convert`.
+- **Keys**: `value`, `from` (iso/epoch), `to` (iso/epoch/pattern), `zone` (UTC/etc).
+
+### **Interactive Patterns**
+
+When building interactive recipes, use the `agent.think` tool to format raw JSON outputs into human-readable options before asking the user for a selection:
+
+```yaml
+## list-options
+tool: agent
+operation: think
+prompt: "Format these results as a list for the user: ${previous-step.body}"
+
+## ask-selection
+tool: interactive
+operation: ask
+prompt: "Pick a GUID from the list above:"
+```
+
+### **Interactive (`interactive`)**
+- **Operations**: `ask`.
+- **Keys**: `question`.
+- **Note**: Pauses execution to wait for user input.
+
+### **Recipe (`recipe`)** (Lego Mode)
+- **Operations**: `run`.
+- **Keys**: `name` (of the sub-recipe).
+- **Note**: Merges steps from the target recipe into the current run.
 
 ### **System (`system`)**
-- **Operations**: `list_tools`, `tool_details`, `agent_config`, `ask`.
-- **Key**: `question` (for `ask` operation).
+- **Operations**: `list_tools`, `tool_details`, `agent_config`.
 
 ---
 
@@ -131,4 +164,24 @@ steps:
     resource: pods
     flags:
       selector: "app=${svc.serviceName}"
+
+---
+
+### **4. Lego Recipes (Modular Composition)**
+
+You can reuse existing recipes as building blocks. When a recipe is run as a step, its steps are executed in the current context, and its results are added to the shared variable pool.
+
+```markdown
+## 1. health-check
+tool: recipe
+operation: run
+name: common-health-check
+
+## 2. specialized-audit
+tool: agent
+operation: loop
+condition: ${health-check.steps_executed} > 0
+prompt: |
+  Since health check passed, perform a deep audit of the last 3 commits.
+```
 ```

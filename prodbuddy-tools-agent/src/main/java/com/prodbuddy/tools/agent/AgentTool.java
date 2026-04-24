@@ -23,28 +23,54 @@ public final class AgentTool implements Tool {
         return new ToolMetadata(
                 "agent",
                 "Advanced reasoning and analysis tool powered by LLM.",
-                Set.of("agent.generate_recipe", "agent.validate_recipe", "agent.think", "agent.extract", "agent.wait")
+                Set.of("agent.generate_recipe", "agent.validate_recipe",
+                        "agent.think", "agent.extract", "agent.wait",
+                        "agent.loop")
         );
     }
 
     @Override
-    public boolean supports(ToolRequest request) {
+    public boolean supports(final ToolRequest request) {
         return metadata().capabilities().contains(request.operation());
     }
 
     @Override
-    public ToolResponse execute(ToolRequest request, ToolContext context) {
+    public ToolResponse execute(final ToolRequest request,
+                                final ToolContext context) {
         return switch (request.operation()) {
             case "think" -> handleThink(request, context);
             case "extract" -> handleExtract(request, context);
             case "wait" -> handleWait(request, context);
+            case "loop" -> handleLoop(request, context);
             case "generate_recipe" -> handleGenerateRecipe(request, context);
             case "validate_recipe" -> handleValidateRecipe(request, context);
-            default -> ToolResponse.failure("UNKNOWN_OPERATION", "Operation not supported: " + request.operation());
+            default -> ToolResponse.failure("UNKNOWN_OPERATION",
+                    "Operation not supported: " + request.operation());
         };
     }
 
-    private ToolResponse handleWait(ToolRequest request, ToolContext context) {
+    private ToolResponse handleLoop(final ToolRequest request,
+                                    final ToolContext context) {
+        AgentConfig config = AgentConfig.from(context.environment());
+        if (!config.enabled()) {
+            return ToolResponse.failure("AGENT_DISABLED",
+                    "Agent loop is not enabled.");
+        }
+
+        String prompt = String.valueOf(request.payload()
+                .getOrDefault("prompt", ""));
+        Object toolsObj = request.payload().get("tools");
+        java.util.List<String> allowedTools = null;
+        if (toolsObj instanceof java.util.List) {
+            allowedTools = (java.util.List<String>) toolsObj;
+        }
+
+        AgentLoopManager manager = new AgentLoopManager(client, config);
+        return manager.run(prompt, allowedTools, context);
+    }
+
+    private ToolResponse handleWait(final ToolRequest request,
+                                    final ToolContext context) {
         Object secondsObj = request.payload().getOrDefault("seconds", "5");
         int seconds = 5;
         try {
@@ -54,162 +80,107 @@ public final class AgentTool implements Tool {
         }
         try {
             Thread.sleep(seconds * 1000L);
-            return ToolResponse.ok(Map.of("waited_seconds", seconds, "status", "waited"));
+            return ToolResponse.ok(Map.of("waited_seconds", seconds,
+                    "status", "waited"));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return ToolResponse.failure("INTERRUPTED", "Wait interrupted.");
         }
     }
 
-    private ToolResponse handleExtract(ToolRequest request, ToolContext context) {
+    private ToolResponse handleExtract(final ToolRequest request,
+                                       final ToolContext context) {
         AgentConfig config = AgentConfig.from(context.environment());
         if (!config.enabled()) {
-            return ToolResponse.failure("AGENT_DISABLED", "Agent is disabled.");
+            return ToolResponse.failure("AGENT_DISABLED",
+                    "Agent is disabled.");
         }
 
         String prompt = buildExtractionPrompt(request);
         try {
             String value = client.generate(prompt, config).trim();
-            // Try to clean up if LLM included conversational text
-            if (value.contains("\n")) value = value.split("\n")[0].trim();
-            return ToolResponse.ok(Map.of("sid", value, "value", value, "status", "extracted"));
+            if (value.contains("\n")) {
+                value = value.split("\n")[0].trim();
+            }
+            return ToolResponse.ok(Map.of("sid", value, "value", value,
+                    "status", "extracted"));
         } catch (Exception e) {
-            return ToolResponse.failure("LLM_ERROR", "Extraction failed: " + e.getMessage());
+            return ToolResponse.failure("LLM_ERROR",
+                    "Extraction failed: " + e.getMessage());
         }
     }
 
-    private String buildExtractionPrompt(ToolRequest request) {
-        String target = String.valueOf(request.payload().getOrDefault("target", "SID"));
-        String data = String.valueOf(request.payload().getOrDefault("data", ""));
-        return "You are a data extraction tool. Extract the " + target + " from the following data.\n"
+    private String buildExtractionPrompt(final ToolRequest request) {
+        String target = String.valueOf(request.payload()
+                .getOrDefault("target", "SID"));
+        String data = String.valueOf(request.payload()
+                .getOrDefault("data", ""));
+        return "You are a data extraction tool. Extract the " + target
+                + " from the following data.\n"
                 + "Data: " + data + "\n\n"
-                + "Return ONLY the raw value, no explanation, no quotes, no conversational text.";
+                + "Return ONLY the raw value, no explanation, no quotes.";
     }
 
-    private ToolResponse handleThink(ToolRequest request, ToolContext context) {
+    private ToolResponse handleThink(final ToolRequest request,
+                                     final ToolContext context) {
         AgentConfig config = AgentConfig.from(context.environment());
         if (!config.enabled()) {
-            return ToolResponse.failure("AGENT_DISABLED", "Agent reasoning is not enabled in environment.");
+            return ToolResponse.failure("AGENT_DISABLED",
+                    "Agent reasoning is not enabled.");
         }
 
         String prompt = buildPrompt(request, context);
+        java.util.List<String> images = extractImages(request.payload());
         try {
-            String opinion = client.generate(prompt, config);
-            return ToolResponse.ok(Map.of(
-                    "opinion", opinion,
-                    "status", "analyzed"
-            ));
+            String opinion = client.generate(prompt, images, config);
+            return ToolResponse.ok(Map.of("opinion", opinion,
+                    "status", "analyzed"));
         } catch (Exception e) {
-            return ToolResponse.failure("LLM_ERROR", "Failed to generate agent opinion: " + e.getMessage());
+            return ToolResponse.failure("LLM_ERROR",
+                    "Failed to generate opinion: " + e.getMessage());
         }
     }
 
-    private ToolResponse handleGenerateRecipe(ToolRequest request, ToolContext context) {
-        String objective = String.valueOf(request.payload().getOrDefault("objective", "A general diagnostic recipe"));
+    private java.util.List<String> extractImages(final Map<String, Object> payload) {
+        Object img = payload.get("images");
+        if (img instanceof java.util.List<?> list) {
+            return list.stream().map(String::valueOf).toList();
+        }
+        Object single = payload.get("image");
+        if (single != null) {
+            return java.util.List.of(String.valueOf(single));
+        }
+        return java.util.Collections.emptyList();
+    }
+
+    private ToolResponse handleGenerateRecipe(final ToolRequest request,
+                                              final ToolContext context) {
+        String obj = String.valueOf(request.payload()
+                .getOrDefault("objective", "A diagnostic recipe"));
         String guide = readGuide(context);
-        if (guide == null) return ToolResponse.failure("GUIDE_NOT_FOUND", "Could not read recipe guide.");
-
-        String prompt = buildGenerationPrompt(objective, guide);
+        if (guide == null) {
+            return ToolResponse.failure("GUIDE_NOT_FOUND", "No guide.");
+        }
         AgentConfig config = AgentConfig.from(context.environment());
-        try {
-            String recipe = client.generate(prompt, config);
-            validateRecipe(recipe);
-            String path = saveRecipe(recipe, context);
-            return ToolResponse.ok(java.util.Map.of("recipe", recipe, "path", path, "status", "generated_and_saved"));
-        } catch (Exception e) {
-            return ToolResponse.failure("GENERATION_FAILED", "Recipe invalid or failed: " + e.getMessage());
-        }
+        return new RecipeAgentHelper(client, config).generate(obj,
+                guide, context);
     }
 
-    private ToolResponse handleValidateRecipe(ToolRequest request, ToolContext context) {
-        String recipeContent = String.valueOf(request.payload().getOrDefault("recipe", ""));
-        if (recipeContent.isBlank()) return ToolResponse.failure("MISSING_CONTENT", "Recipe content is required.");
-
-        java.util.List<String> errors = new java.util.ArrayList<>();
-        try {
-            java.nio.file.Path temp = java.nio.file.Files.createTempFile("recipe-val", ".md");
-            try {
-                java.nio.file.Files.writeString(temp, recipeContent);
-                com.prodbuddy.recipes.RecipeLoader loader = new com.prodbuddy.recipes.RecipeLoader();
-                com.prodbuddy.recipes.RecipeDefinition def = loader.load(temp);
-                
-                checkSemanticValidity(def, errors, context);
-                checkReferenceValidity(def, errors);
-            } finally {
-                java.nio.file.Files.deleteIfExists(temp);
-            }
-        } catch (Exception e) {
-            errors.add("Syntax Error: " + e.getMessage());
+    private ToolResponse handleValidateRecipe(final ToolRequest request,
+                                              final ToolContext context) {
+        String content = String.valueOf(request.payload()
+                .getOrDefault("recipe", ""));
+        if (content.isBlank()) {
+            return ToolResponse.failure("MISSING_CONTENT", "No content.");
         }
-
-        return ToolResponse.ok(java.util.Map.of(
-                "valid", errors.isEmpty(),
-                "errors", errors,
-                "status", errors.isEmpty() ? "valid" : "invalid"
-        ));
+        AgentConfig config = AgentConfig.from(context.environment());
+        return new RecipeAgentHelper(client, config).validateContent(content,
+                context);
     }
 
-    private void checkSemanticValidity(com.prodbuddy.recipes.RecipeDefinition def, java.util.List<String> errors, ToolContext context) {
-        Map<String, Set<String>> toolMap = new java.util.HashMap<>();
-        if (context.registry() != null) {
-            context.registry().metadata().forEach(m -> toolMap.put(m.name(), m.capabilities()));
-        } else {
-            // Fallback to discovery if context has no registry (e.g. tests)
-            com.prodbuddy.core.tool.ToolRegistry.discover().metadata().forEach(m -> toolMap.put(m.name(), m.capabilities()));
-        }
-
-        for (com.prodbuddy.recipes.RecipeStep step : def.steps()) {
-            if (!toolMap.containsKey(step.tool())) {
-                errors.add("Step '" + step.name() + "': Unknown tool '" + step.tool() + "'");
-                continue;
-            }
-            if (!toolMap.get(step.tool()).contains(step.tool() + "." + step.operation())) {
-                errors.add("Step '" + step.name() + "': Tool '" + step.tool() + "' has no operation '" + step.operation() + "'");
-            }
-        }
-    }
-
-    private void checkReferenceValidity(com.prodbuddy.recipes.RecipeDefinition def, java.util.List<String> errors) {
-        java.util.Set<String> validSteps = new java.util.HashSet<>();
-        java.util.regex.Pattern p = java.util.regex.Pattern.compile("\\$\\{([a-zA-Z0-9._-]+)\\}");
-
-        for (com.prodbuddy.recipes.RecipeStep step : def.steps()) {
-            String stepStr = step.toString(); // Simple way to scan all fields
-            java.util.regex.Matcher m = p.matcher(stepStr);
-            while (m.find()) {
-                String ref = m.group(1);
-                if (ref.startsWith("system.")) {
-                    continue;
-                }
-                if (ref.contains(".")) {
-                    String stepRef = ref.split("\\.")[0];
-                    if (!validSteps.contains(stepRef) && !isGlobalVar(stepRef)) {
-                        errors.add("Step '" + step.name() + "': Reference to unknown or future step '" + stepRef + "'");
-                    }
-                }
-            }
-            validSteps.add(step.name());
-        }
-    }
-
-    private boolean isGlobalVar(String var) {
-        // Basic list of known global context vars (can be expanded)
-        return java.util.Set.of("USER", "PASSWORD", "URL", "ENV", "input").contains(var);
-    }
-
-
-    private void validateRecipe(String content) throws Exception {
-        java.nio.file.Path temp = java.nio.file.Files.createTempFile("gen-recipe-val", ".md");
-        try {
-            java.nio.file.Files.writeString(temp, content);
-            new com.prodbuddy.recipes.RecipeLoader().load(temp);
-        } finally {
-            java.nio.file.Files.deleteIfExists(temp);
-        }
-    }
-
-    private String readGuide(ToolContext context) {
-        String path = context.envOrDefault("RECIPE_GUIDE_PATH", "docs/creating-recipes-guide.md");
+    private String readGuide(final ToolContext context) {
+        String path = context.envOrDefault("RECIPE_GUIDE_PATH",
+                "docs/creating-recipes-guide.md");
         try {
             return java.nio.file.Files.readString(java.nio.file.Path.of(path));
         } catch (java.io.IOException e) {
@@ -217,61 +188,18 @@ public final class AgentTool implements Tool {
         }
     }
 
-    private String buildGenerationPrompt(String objective, String guide) {
-        return "You are the ProdBuddy Recipe Generator.\n\n"
-                + "OBJECTIVE: " + objective + "\n\n"
-                + "CONSTRAINTS:\n- Produce a VALID ProdBuddy Recipe in Markdown format.\n"
-                + "- Use exact tool names and operations from the GUIDE.\n"
-                + "- MANDATORY: Every step MUST include 'tool: <name>' and 'operation: <op>' as separate keys.\n"
-                + "- Use ${stepName.field} for interpolation.\n- Return ONLY the markdown content.\n\n"
-                + "GUIDE HIGHLIGHTS:\n" + distillGuide(guide) + "\n\nGENERATE:";
-    }
-
-    private String saveRecipe(String content, ToolContext context) throws java.io.IOException {
-        String dir = context.envOrDefault("RECIPES_DIR", "recipes");
-        String fileName = "generated-" + System.currentTimeMillis() + ".md";
-        java.nio.file.Path path = java.nio.file.Path.of(dir).resolve(fileName);
-        java.nio.file.Files.createDirectories(path.getParent());
-        java.nio.file.Files.writeString(path, content);
-        return path.toString();
-    }
-
-    private String distillGuide(String guide) {
-        String marker = "## AI Generator Reference";
-        int index = guide.indexOf(marker);
-        if (index >= 0) {
-            return guide.substring(index); // Prioritize the rulebook
+    private String buildPrompt(final ToolRequest request,
+                               final ToolContext context) {
+        Object custom = request.payload().get("prompt");
+        StringBuilder sb = new StringBuilder("Assistant Context:\n");
+        if (custom != null && !String.valueOf(custom).isBlank()) {
+            sb.append("Task: ").append(custom).append("\n");
         }
-        
-        StringBuilder sb = new StringBuilder();
-        for (String line : guide.split("\n")) {
-            String trimmed = line.trim();
-            if (trimmed.startsWith("#") || trimmed.startsWith("-") || trimmed.startsWith("```")) {
-                sb.append(line).append("\n");
-            }
-        }
-        return sb.toString();
-    }
-
-    private String buildPrompt(ToolRequest request, ToolContext context) {
-        Object customPrompt = request.payload().get("prompt");
-        StringBuilder sb = new StringBuilder();
-        sb.append("You are the ProdBuddy Diagnostic Assistant.\n\n");
-        
-        if (customPrompt != null && !String.valueOf(customPrompt).isBlank()) {
-            sb.append("Focus Task: ").append(customPrompt).append("\n\n");
-        } else {
-            sb.append("Analyze the provided diagnostic data and recommend the most effective next step.\n\n");
-        }
-
-        sb.append("Current Context Values:\n");
         request.payload().forEach((k, v) -> {
             if (!"prompt".equals(k)) {
                 sb.append("- ").append(k).append(": ").append(v).append("\n");
             }
         });
-
-        sb.append("\nPlease provide a concise opinion followed by a single clear recommendation.");
-        return sb.toString();
+        return sb.append("\nConcise recommendation:").toString();
     }
 }

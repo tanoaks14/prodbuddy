@@ -63,7 +63,7 @@ public final class GenericApiTool implements Tool {
                 NAME,
                 "Generic API tool with optional auth",
                 Set.of("http.get", "http.post", "http.put", "http.patch",
-                        "http.delete", "http.head")
+                        "http.delete", "http.head", "http.download_base64")
         );
     }
 
@@ -93,6 +93,9 @@ public final class GenericApiTool implements Tool {
         seqLog.logSequence("http", "ExternalAPI", "send", method + " " + url);
         HttpRequest httpRequest = buildRequest(method, url, request.payload(),
                 context);
+        if ("download_base64".equalsIgnoreCase(request.operation())) {
+            return sendBinary(httpRequest, method, url, request, context);
+        }
         return send(httpRequest, method, url, request, context);
     }
 
@@ -146,6 +149,37 @@ public final class GenericApiTool implements Tool {
             return HttpRequest.BodyPublishers.noBody();
         }
         return HttpRequest.BodyPublishers.ofString(body);
+    }
+
+    private ToolResponse sendBinary(final HttpRequest httpRequest,
+                                    final String method,
+                                    final String url,
+                                    final ToolRequest toolRequest,
+                                    final ToolContext context) {
+        try {
+            HttpResponse<byte[]> response = client.send(httpRequest,
+                    HttpResponse.BodyHandlers.ofByteArray());
+            seqLog.logSequence("ExternalAPI", "http", "sendBinary",
+                    "Response: " + response.statusCode());
+
+            String base64 = java.util.Base64.getEncoder()
+                    .encodeToString(response.body());
+
+            Map<String, Object> data = new HashMap<>();
+            data.put("method", method);
+            data.put("url", url);
+            data.put("status", response.statusCode());
+            data.put("base64", base64);
+            data.put("contentType", response.headers()
+                    .firstValue("Content-Type").orElse("application/octet-stream"));
+
+            return ToolResponse.ok(data);
+        } catch (Exception exception) {
+            seqLog.logSequence("ExternalAPI", "http", "sendBinary",
+                    "Failed: " + exception.getMessage());
+            return ToolResponse.failure("HTTP_BINARY_FAILED",
+                    exception.getMessage());
+        }
     }
 
     private ToolResponse send(final HttpRequest httpRequest,

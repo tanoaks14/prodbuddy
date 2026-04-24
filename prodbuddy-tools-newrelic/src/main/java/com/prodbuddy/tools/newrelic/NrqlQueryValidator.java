@@ -4,15 +4,28 @@ import java.util.Map;
 
 import com.prodbuddy.core.tool.ToolResponse;
 
+/**
+ * Validator for NRQL query requests using guardrails.
+ */
 public final class NrqlQueryValidator {
 
+    /** Guardrails to check against. */
     private final NrqlGuardrails guardrails;
 
-    public NrqlQueryValidator(NrqlGuardrails guardrails) {
-        this.guardrails = guardrails;
+    /**
+     * Create a validator.
+     * @param guardrailsVal guardrails to use
+     */
+    public NrqlQueryValidator(final NrqlGuardrails guardrailsVal) {
+        this.guardrails = guardrailsVal;
     }
 
-    public ToolResponse validate(NrqlQueryRequest request) {
+    /**
+     * Validates a request.
+     * @param request the request to validate
+     * @return null if valid, ToolResponse if invalid
+     */
+    public ToolResponse validate(final NrqlQueryRequest request) {
         ToolResponse metricCheck = validateMetric(request.metric());
         if (metricCheck != null) {
             return metricCheck;
@@ -36,38 +49,43 @@ public final class NrqlQueryValidator {
         return validateGroupBy(request.groupBy());
     }
 
-    private ToolResponse validateMetric(String metric) {
+    private ToolResponse validateMetric(final String metric) {
         if (guardrails.isMetricAllowed(metric)) {
             return null;
         }
-        return ToolResponse.failure("NEWRELIC_METRIC", "Unsupported metric: " + metric);
+        return ToolResponse.failure("NEWRELIC_METRIC",
+            "Unsupported metric: " + metric);
     }
 
-    private ToolResponse validateWindow(int minutes) {
+    private ToolResponse validateWindow(final int minutes) {
         if (minutes <= guardrails.maxTimeWindowMinutes()) {
             return null;
         }
-        return ToolResponse.failure("NEWRELIC_WINDOW", "timeWindowMinutes exceeds guardrail");
+        return ToolResponse.failure("NEWRELIC_WINDOW",
+            "timeWindowMinutes exceeds guardrail");
     }
 
-    private ToolResponse validateLimit(int limit) {
+    private ToolResponse validateLimit(final int limit) {
         if (limit <= guardrails.maxLimit()) {
             return null;
         }
-        return ToolResponse.failure("NEWRELIC_LIMIT", "limit exceeds guardrail");
+        return ToolResponse.failure("NEWRELIC_LIMIT",
+            "limit exceeds guardrail");
     }
 
-    private ToolResponse validateFilters(Map<String, String> filters) {
+    private ToolResponse validateFilters(final Map<String, String> filters) {
         if (filters.size() <= guardrails.maxFilters()) {
             return null;
         }
-        return ToolResponse.failure("NEWRELIC_FILTERS", "too many filters requested");
+        return ToolResponse.failure("NEWRELIC_FILTERS",
+            "too many filters requested");
     }
 
-    private ToolResponse validateGroupBy(String groupBy) {
+    private ToolResponse validateGroupBy(final String groupBy) {
         if (guardrails.isGroupByAllowed(groupBy)) {
             return null;
         }
-        return ToolResponse.failure("NEWRELIC_GROUP", "Unsupported groupBy: " + groupBy);
+        return ToolResponse.failure("NEWRELIC_GROUP",
+            "Unsupported groupBy: " + groupBy);
     }
 }

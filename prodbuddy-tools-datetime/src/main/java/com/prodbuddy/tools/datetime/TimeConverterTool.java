@@ -1,0 +1,72 @@
+package com.prodbuddy.tools.datetime;
+
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.Map;
+import java.util.Set;
+
+import com.prodbuddy.core.tool.Tool;
+import com.prodbuddy.core.tool.ToolContext;
+import com.prodbuddy.core.tool.ToolMetadata;
+import com.prodbuddy.core.tool.ToolRequest;
+import com.prodbuddy.core.tool.ToolResponse;
+
+public final class TimeConverterTool implements Tool {
+
+    @Override
+    public ToolMetadata metadata() {
+        return new ToolMetadata(
+                "datetime",
+                "Tool for date and time transformations.",
+                Set.of("datetime.convert")
+        );
+    }
+
+    @Override
+    public boolean supports(final ToolRequest request) {
+        return "convert".equals(request.operation());
+    }
+
+    @Override
+    public ToolResponse execute(final ToolRequest request,
+                                final ToolContext context) {
+        String input = String.valueOf(request.payload().get("value"));
+        String from = String.valueOf(request.payload()
+                .getOrDefault("from", "iso"));
+        String to = String.valueOf(request.payload()
+                .getOrDefault("to", "epoch"));
+        String zone = String.valueOf(request.payload()
+                .getOrDefault("zone", "UTC"));
+
+        try {
+            String result = convert(input, from, to, zone);
+            return ToolResponse.ok(Map.of("value", result,
+                    "status", "converted"));
+        } catch (Exception e) {
+            return ToolResponse.failure("CONVERSION_ERROR", e.getMessage());
+        }
+    }
+
+    private String convert(final String input, final String from,
+                           final String to, final String zone)
+            throws Exception {
+        Instant instant;
+        if ("iso".equalsIgnoreCase(from)) {
+            instant = Instant.parse(input);
+        } else if ("epoch".equalsIgnoreCase(from)) {
+            instant = Instant.ofEpochMilli(Long.parseLong(input));
+        } else {
+            throw new IllegalArgumentException("Unsupported: " + from);
+        }
+
+        if ("epoch".equalsIgnoreCase(to)) {
+            return String.valueOf(instant.toEpochMilli());
+        } else if ("iso".equalsIgnoreCase(to)) {
+            return instant.toString();
+        }
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern(to)
+                .withZone(ZoneId.of(zone));
+        return fmt.format(instant);
+    }
+}
