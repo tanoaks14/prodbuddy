@@ -159,7 +159,7 @@ public final class NewRelicTool implements Tool {
         }
         String query = "{ actor { entity(guid: \\\"" + request.guid() + "\\\") { name "
                 + "... on DashboardEntity { pages { name guid widgets { title visualization { id } rawConfiguration } } } "
-                + "... on DashboardPageEntity { widgets { title visualization { id } rawConfiguration } } } } }";
+                + "... on DashboardPage { widgets { title visualization { id } rawConfiguration } } } } }";
         return client.query("{\"query\":\"" + query + "\"}", context);
     }
 
