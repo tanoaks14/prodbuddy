@@ -24,10 +24,20 @@ public final class NewRelicTool implements Tool {
     private final SequenceLogger seqLog;
 
     public NewRelicTool(NewRelicScenarioCatalog catalog) {
-        this(catalog, new NrqlQueryBuilder(), new NrqlQueryValidator(NrqlGuardrails.defaults()), new NrqlGraphQLClient(), new QueryService());
+        this.seqLog = new Slf4jSequenceLogger(NewRelicTool.class);
+        this.catalog = catalog;
+        this.queryBuilder = new NrqlQueryBuilder();
+        this.validator = new NrqlQueryValidator(NrqlGuardrails.defaults());
+        this.client = new NrqlGraphQLClient(seqLog);
+        this.queryService = new QueryService();
+        this.dataService = new DashboardDataService(client, seqLog);
     }
 
-    public NewRelicTool(NewRelicScenarioCatalog c, NrqlQueryBuilder b, NrqlQueryValidator v, NrqlGraphQLClient cl, QueryService qs) {
+    public NewRelicTool(final NewRelicScenarioCatalog c,
+                        final NrqlQueryBuilder b,
+                        final NrqlQueryValidator v,
+                        final NrqlGraphQLClient cl,
+                        final QueryService qs) {
         this.catalog = c;
         this.queryBuilder = b;
         this.validator = v;
@@ -206,19 +216,26 @@ public final class NewRelicTool implements Tool {
         return new TraceRequest(String.valueOf(request.payload().getOrDefault("traceId", "")));
     }
 
+    @SuppressWarnings("unchecked")
     private DashboardRequest dashboardRequestFrom(final ToolRequest request) {
         Map<String, Object> p = request.payload();
         int duration = 0;
         try {
             Object d = p.get("duration");
-            if (d != null) duration = Integer.parseInt(String.valueOf(d));
-        } catch (Exception e) {}
+            if (d != null) {
+                duration = Integer.parseInt(String.valueOf(d));
+            }
+        } catch (Exception e) { }
+        
+        Map<String, String> vars = (Map<String, String>) p.getOrDefault("variables", Map.of());
+        
         return new DashboardRequest(
             String.valueOf(p.getOrDefault("guid", "")),
             String.valueOf(p.getOrDefault("name", "")),
             String.valueOf(p.getOrDefault("compareWith", "")),
             String.valueOf(p.getOrDefault("pageGuid", "")),
-            duration
+            duration,
+            vars
         );
     }
 

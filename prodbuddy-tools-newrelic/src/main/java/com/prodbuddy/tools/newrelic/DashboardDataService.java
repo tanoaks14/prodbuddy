@@ -55,6 +55,9 @@ public final class DashboardDataService {
             QueryInfo info = extractQueryInfo(w);
             if (info != null && info.query != null && !info.query.isEmpty()) {
                 String n = info.query;
+                // Resolve template variables before adding modifiers
+                n = resolveVariables(n, req, ctx);
+                
                 if (!req.compareWith().isEmpty()
                         && !n.toLowerCase().contains("compare with")) {
                     n += " COMPARE WITH " + req.compareWith();
@@ -100,6 +103,60 @@ public final class DashboardDataService {
         seqLog.logSequence("newrelic", "DashboardDataService", "executeQuery",
                 "Query success. Returned " + (results.isArray() ? results.size() : "some") + " rows.");
         return mapper.convertValue(results, List.class);
+    }
+
+    private String resolveVariables(final String query,
+                                    final DashboardRequest req,
+                                    final ToolContext ctx) {
+        java.util.regex.Pattern p = java.util.regex.Pattern.compile(
+                "(\\$|\\{)\\{([^}]+)\\}\\}?");
+        java.util.regex.Matcher m = p.matcher(query);
+        StringBuilder sb = new StringBuilder();
+        int last = 0;
+        boolean hasUnresolved = false;
+        while (m.find()) {
+            sb.append(query, last, m.start());
+            String var = m.group(2).trim();
+            String val = getVariableValue(var, req, ctx);
+            if (val != null) {
+                sb.append(val);
+            } else {
+                sb.append(m.group(0));
+                hasUnresolved = true;
+                seqLog.logSequence("newrelic", "DashboardDataService", "resolveVariables",
+                        "WARNING: Unresolved variable: " + var);
+            }
+            last = m.end();
+        }
+        sb.append(query.substring(last));
+        if (hasUnresolved) {
+            seqLog.logSequence("newrelic", "DashboardDataService", "resolveVariables",
+                    "Query has placeholders: " + sb.toString());
+        }
+        return sb.toString();
+    }
+
+    private String getVariableValue(final String var,
+                                    final DashboardRequest req,
+                                    final ToolContext ctx) {
+        // 1. Check if it's explicitly passed in the request
+        if (req.variables().containsKey(var)) {
+            return req.variables().get(var);
+        }
+        // 2. Check if it's a known dashboard param
+        if ("guid".equalsIgnoreCase(var)) {
+            return req.guid();
+        }
+        if ("pageGuid".equalsIgnoreCase(var)) {
+            return req.pageGuid();
+        }
+        // 3. Check environment/context
+        String val = ctx.env(var);
+        if (val != null) {
+            return val;
+        }
+        // 4. Fallback to empty if it looks like a required filter
+        return null;
     }
 
     private static class QueryInfo {

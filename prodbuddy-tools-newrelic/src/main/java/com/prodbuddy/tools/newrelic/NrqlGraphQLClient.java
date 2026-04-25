@@ -9,6 +9,7 @@ import java.util.Map;
 
 import com.prodbuddy.core.tool.ToolContext;
 import com.prodbuddy.core.tool.ToolResponse;
+import com.prodbuddy.observation.SequenceLogger;
 
 /**
  * Client for interacting with New Relic NerdGraph API.
@@ -20,14 +21,18 @@ public final class NrqlGraphQLClient {
 
     /** HTTP client. */
     private final HttpClient client;
+    /** Logger. */
+    private final SequenceLogger seqLog;
 
     /**
      * Create a client.
+     * @param seqLog the logger
      */
-    public NrqlGraphQLClient() {
+    public NrqlGraphQLClient(final SequenceLogger seqLog) {
         this.client = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(CONNECT_TIMEOUT_SEC))
             .build();
+        this.seqLog = seqLog;
     }
 
     /**
@@ -62,6 +67,12 @@ public final class NrqlGraphQLClient {
                 "NEWRELIC_USER_API_KEY is required");
         }
 
+        boolean debug = "true".equalsIgnoreCase(context.envOrDefault("DEBUG", "false"));
+        if (debug) {
+            seqLog.logSequence("newrelic", "NrqlGraphQLClient", "query",
+                    "GQL REQ: " + graphqlBody);
+        }
+
         String region = context.envOrDefault("NEWRELIC_REGION", "US")
             .toUpperCase();
         String defaultUrl = region.equals("EU")
@@ -76,7 +87,7 @@ public final class NrqlGraphQLClient {
                 .header("API-Key", apiKey)
                 .POST(HttpRequest.BodyPublishers.ofString(graphqlBody))
                 .build();
-        return send(request, graphqlBody);
+        return send(request, graphqlBody, debug);
     }
 
     private String escape(final String text) {
@@ -90,10 +101,19 @@ public final class NrqlGraphQLClient {
                    .replace("\t", " ");
     }
 
-    private ToolResponse send(final HttpRequest request, final String query) {
+    private ToolResponse send(final HttpRequest request,
+                              final String query,
+                              final boolean debug) {
         try {
             HttpResponse<String> response = client.send(request,
                 HttpResponse.BodyHandlers.ofString());
+            
+            if (debug) {
+                 seqLog.logSequence("NrqlGraphQLClient", "newrelic", "send",
+                         "GQL RESP [" + response.statusCode() + "]: " 
+                                 + response.body());
+            }
+
             return ToolResponse.ok(Map.of("status", response.statusCode(),
                 "body", response.body(), "query", query));
         } catch (Exception exception) {
