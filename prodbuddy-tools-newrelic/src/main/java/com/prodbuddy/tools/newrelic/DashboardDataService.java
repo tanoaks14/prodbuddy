@@ -55,8 +55,12 @@ public final class DashboardDataService {
             QueryInfo info = extractQueryInfo(w);
             if (info != null && info.query != null && !info.query.isEmpty()) {
                 String n = info.query;
+                seqLog.logSequence("newrelic", "DashboardDataService", "processWidgets",
+                        "Raw NRQL from widget: " + n);
                 // Resolve template variables before adding modifiers
                 n = resolveVariables(n, req, ctx);
+                seqLog.logSequence("newrelic", "DashboardDataService", "processWidgets",
+                        "Resolved NRQL: " + n);
                 
                 if (!req.compareWith().isEmpty()
                         && !n.toLowerCase().contains("compare with")) {

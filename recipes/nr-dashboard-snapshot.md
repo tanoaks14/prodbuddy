@@ -71,6 +71,12 @@ operation: get_dashboard_data
 guid: "${select-dashboard.guid}"
 pageGuid: "${select-page.guid}"
 duration: 15
+# Use the 'variables' map to resolve placeholders in template dashboards (e.g., {{appName}})
+variables:
+  appName: "OrderService"
+  http.method.filter: "POST"
+  uri.filter: "%"
+  http.status.filter: "200"
 
 ## analyze-telemetry
 tool: agent

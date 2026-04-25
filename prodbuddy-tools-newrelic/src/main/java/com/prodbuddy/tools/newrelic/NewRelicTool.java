@@ -227,7 +227,11 @@ public final class NewRelicTool implements Tool {
             }
         } catch (Exception e) { }
         
-        Map<String, String> vars = (Map<String, String>) p.getOrDefault("variables", Map.of());
+        Map<String, String> vars = new java.util.HashMap<>();
+        Object vObj = p.get("variables");
+        if (vObj instanceof Map<?, ?> vMap) {
+            vMap.forEach((k, v) -> vars.put(String.valueOf(k), String.valueOf(v)));
+        }
         
         return new DashboardRequest(
             String.valueOf(p.getOrDefault("guid", "")),
