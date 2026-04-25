@@ -100,15 +100,22 @@ public final class NewRelicTool implements Tool {
     }
 
     private ToolResponse getDashboard(DashboardRequest request, ToolContext context) {
-        if (request.guid().isBlank()) return ToolResponse.failure("NEWRELIC_DASHBOARD_GUID", "guid required");
+        if (request.guid().isBlank()) {
+            return ToolResponse.failure("NEWRELIC_DASHBOARD_GUID", "guid required");
+        }
         String query;
         if (queryService.exists("newrelic/get_dashboard.graphql")) {
-            query = queryService.render("newrelic/get_dashboard.graphql", Map.of("guid", request.guid()));
+            query = queryService.render("newrelic/get_dashboard.graphql",
+                    Map.of("guid", request.guid()));
         } else {
             query = "{ actor { entity(guid: \\\"" + request.guid() + "\\\") { name "
-                + "... on DashboardEntity { pages { name guid widgets { title visualization { id } rawConfiguration } } } } } } }";
+                + "... on DashboardEntity { pages { name guid widgets { title "
+                + "visualization { id } rawConfiguration } } } } } } }";
         }
-        return client.query("{\"query\":\"" + query.replace("\n", " ").replace("\"", "\\\"") + "\"}", context);
+        String escaped = query.replace("\\", "\\\\\\\\")
+                .replace("\"", "\\\\\\\"")
+                .replace("\n", " ");
+        return client.query("{\"query\":\"" + escaped + "\"}", context);
     }
 
     private ToolResponse validate(ToolRequest request) {

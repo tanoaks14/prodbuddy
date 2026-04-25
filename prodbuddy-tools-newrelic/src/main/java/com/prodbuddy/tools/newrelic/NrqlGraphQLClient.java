@@ -42,8 +42,10 @@ public final class NrqlGraphQLClient {
             return ToolResponse.failure("NEWRELIC_CONFIG",
                 "NEWRELIC_ACCOUNT_ID is required for NRQL queries");
         }
+        // Properly escape the NRQL query for inclusion in a JSON-encoded GraphQL query
+        String escapedNrql = escape(nrql);
         String query = "{\"query\":\"{ actor { account(id: " + accountId
-            + ") { nrql(query: \\\"" + escape(nrql) + "\\\") { results } } } }\"}";
+            + ") { nrql(query: \\\"" + escapedNrql + "\\\") { results } } } }\"}";
         return query(query, context);
     }
 
@@ -78,7 +80,14 @@ public final class NrqlGraphQLClient {
     }
 
     private String escape(final String text) {
-        return text.replace("\"", "\\\\\"");
+        if (text == null) {
+            return "";
+        }
+        return text.replace("\\", "\\\\\\\\")
+                   .replace("\"", "\\\\\\\"")
+                   .replace("\n", " ")
+                   .replace("\r", "")
+                   .replace("\t", " ");
     }
 
     private ToolResponse send(final HttpRequest request, final String query) {
