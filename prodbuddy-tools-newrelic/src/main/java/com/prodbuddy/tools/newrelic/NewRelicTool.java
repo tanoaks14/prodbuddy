@@ -106,8 +106,7 @@ public final class NewRelicTool implements Tool {
             query = queryService.render("newrelic/get_dashboard.graphql", Map.of("guid", request.guid()));
         } else {
             query = "{ actor { entity(guid: \\\"" + request.guid() + "\\\") { name "
-                + "... on DashboardEntity { pages { name guid widgets { title visualization { id } rawConfiguration "
-                + "configuration { ... on NrqlWidgetConfiguration { nrqlQueries { query } } } } } } } } }";
+                + "... on DashboardEntity { pages { name guid widgets { title visualization { id } rawConfiguration } } } } } } }";
         }
         return client.query("{\"query\":\"" + query.replace("\n", " ").replace("\"", "\\\"") + "\"}", context);
     }
