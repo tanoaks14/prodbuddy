@@ -112,9 +112,8 @@ public final class NewRelicTool implements Tool {
                 + "... on DashboardEntity { pages { name guid widgets { title "
                 + "visualization { id } rawConfiguration } } } } } } }";
         }
-        String escaped = query.replace("\\", "\\\\\\\\")
-                .replace("\"", "\\\\\\\"")
-                .replace("\n", " ");
+        String escaped = query.replace("\n", " ")
+                              .replace("\"", "\\\"");
         return client.query("{\"query\":\"" + escaped + "\"}", context);
     }
 

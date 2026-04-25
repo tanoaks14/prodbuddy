@@ -83,8 +83,8 @@ public final class NrqlGraphQLClient {
         if (text == null) {
             return "";
         }
-        return text.replace("\\", "\\\\\\\\")
-                   .replace("\"", "\\\\\\\"")
+        return text.replace("\\", "\\\\")
+                   .replace("\"", "\\\\\"")
                    .replace("\n", " ")
                    .replace("\r", "")
                    .replace("\t", " ");
