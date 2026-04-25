@@ -113,7 +113,7 @@ public final class DashboardDataService {
                                     final DashboardRequest req,
                                     final ToolContext ctx) {
         java.util.regex.Pattern p = java.util.regex.Pattern.compile(
-                "(\\$|\\{)\\{([^}]+)\\}\\}?");
+                "(\\$\\{|\\{\\{)([^}]+)(\\}|\\}\\})");
         java.util.regex.Matcher m = p.matcher(query);
         StringBuilder sb = new StringBuilder();
         int last = 0;
