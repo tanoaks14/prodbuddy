@@ -33,8 +33,8 @@ public final class NewRelicTool implements Tool {
         this.validator = v;
         this.client = cl;
         this.queryService = qs;
-        this.dataService = new DashboardDataService(cl);
         this.seqLog = new Slf4jSequenceLogger(NewRelicTool.class);
+        this.dataService = new DashboardDataService(cl, seqLog);
     }
 
     @Override
