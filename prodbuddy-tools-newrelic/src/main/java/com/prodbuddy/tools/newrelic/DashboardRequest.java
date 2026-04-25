@@ -4,7 +4,8 @@ public record DashboardRequest(
         String guid,
         String name,
         String compareWith,
-        String pageGuid
+        String pageGuid,
+        int duration
 ) {
     public DashboardRequest {
         guid = guid == null ? "" : guid;
@@ -13,7 +14,11 @@ public record DashboardRequest(
         pageGuid = pageGuid == null ? "" : pageGuid;
     }
 
+    public DashboardRequest(String guid, String name, String compareWith, String pageGuid) {
+        this(guid, name, compareWith, pageGuid, 0);
+    }
+
     public DashboardRequest(String guid, String name, String compareWith) {
-        this(guid, name, compareWith, "");
+        this(guid, name, compareWith, "", 0);
     }
 }

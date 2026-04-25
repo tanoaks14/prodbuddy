@@ -70,6 +70,7 @@ tool: newrelic
 operation: get_dashboard_data
 guid: "${select-dashboard.guid}"
 pageGuid: "${select-page.guid}"
+duration: 15
 
 ## analyze-telemetry
 tool: agent

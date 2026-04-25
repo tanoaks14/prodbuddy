@@ -1,0 +1,12 @@
+{
+  actor {
+    entitySearch(query: "${querySnippet}") {
+      results {
+        entities {
+          guid
+          name
+        }
+      }
+    }
+  }
+}

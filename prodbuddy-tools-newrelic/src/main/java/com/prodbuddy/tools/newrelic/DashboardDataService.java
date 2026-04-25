@@ -34,17 +34,44 @@ public final class DashboardDataService {
         List<Map<String, Object>> results = new ArrayList<>();
         for (int i = 0; i < Math.min(ws.size(), 10); i++) {
             JsonNode w = ws.get(i);
-            JsonNode rcNode = w.path("rawConfiguration");
-            if (rcNode.isMissingNode()) continue;
-            JsonNode rc = rcNode.isObject() ? rcNode : mapper.readTree(rcNode.asText());
-            String n = rc.path("nrqlQueries").path(0).path("query").asText();
-            if (!n.isEmpty()) {
+            String n = extractQuery(w);
+            if (n != null && !n.isEmpty()) {
                 if (!req.compareWith().isEmpty() && !n.toLowerCase().contains("compare with")) n += " COMPARE WITH " + req.compareWith();
+                if (req.duration() > 0 && !n.toLowerCase().contains("since ")) n += " SINCE " + req.duration() + " minutes ago";
+                
                 ToolResponse res = client.execute(n, ctx);
-                Object data = res.success() ? mapper.readTree(String.valueOf(res.data().get("body"))).path("data").path("actor").path("account").path("nrql").path("results") : "Error executing query";
+                Object data;
+                if (res.success()) {
+                    JsonNode body = mapper.readTree(String.valueOf(res.data().get("body")));
+                    if (body.has("errors")) {
+                        data = "GraphQL Error: " + body.get("errors").toString();
+                    } else {
+                        data = body.path("data").path("actor").path("account").path("nrql").path("results");
+                    }
+                } else {
+                    data = "Error: " + res.errors();
+                }
                 results.add(Map.of("title", w.path("title").asText(), "query", n, "data", data));
             }
         }
         return results;
+    }
+
+    private String extractQuery(JsonNode w) throws Exception {
+        // Try configuration (typed)
+        JsonNode config = w.path("configuration").path("nrqlQueries");
+        if (config.isArray() && config.size() > 0) {
+            return config.get(0).path("query").asText();
+        }
+        // Try rawConfiguration (untyped)
+        JsonNode rcNode = w.path("rawConfiguration");
+        if (!rcNode.isMissingNode() && !rcNode.isNull()) {
+            JsonNode rc = rcNode.isObject() ? rcNode : mapper.readTree(rcNode.asText());
+            JsonNode rqs = rc.path("nrqlQueries");
+            if (rqs.isArray() && rqs.size() > 0) {
+                return rqs.get(0).path("query").asText();
+            }
+        }
+        return null;
     }
 }

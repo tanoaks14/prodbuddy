@@ -1,0 +1,12 @@
+{
+  actor {
+    entitySearch(query: "type = 'DASHBOARD' ${nameFilter}") {
+      results {
+        entities {
+          guid
+          name
+        }
+      }
+    }
+  }
+}

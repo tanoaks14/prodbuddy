@@ -3,6 +3,7 @@ package com.prodbuddy.tools.newrelic;
 import java.util.Map;
 import java.util.Set;
 
+import com.prodbuddy.core.system.QueryService;
 import com.prodbuddy.core.tool.Tool;
 import com.prodbuddy.core.tool.ToolContext;
 import com.prodbuddy.core.tool.ToolMetadata;
@@ -19,17 +20,19 @@ public final class NewRelicTool implements Tool {
     private final NrqlQueryValidator validator;
     private final NrqlGraphQLClient client;
     private final DashboardDataService dataService;
+    private final QueryService queryService;
     private final SequenceLogger seqLog;
 
     public NewRelicTool(NewRelicScenarioCatalog catalog) {
-        this(catalog, new NrqlQueryBuilder(), new NrqlQueryValidator(NrqlGuardrails.defaults()), new NrqlGraphQLClient());
+        this(catalog, new NrqlQueryBuilder(), new NrqlQueryValidator(NrqlGuardrails.defaults()), new NrqlGraphQLClient(), new QueryService());
     }
 
-    public NewRelicTool(NewRelicScenarioCatalog c, NrqlQueryBuilder b, NrqlQueryValidator v, NrqlGraphQLClient cl) {
+    public NewRelicTool(NewRelicScenarioCatalog c, NrqlQueryBuilder b, NrqlQueryValidator v, NrqlGraphQLClient cl, QueryService qs) {
         this.catalog = c;
         this.queryBuilder = b;
         this.validator = v;
         this.client = cl;
+        this.queryService = qs;
         this.dataService = new DashboardDataService(cl);
         this.seqLog = new Slf4jSequenceLogger(NewRelicTool.class);
     }
@@ -98,9 +101,15 @@ public final class NewRelicTool implements Tool {
 
     private ToolResponse getDashboard(DashboardRequest request, ToolContext context) {
         if (request.guid().isBlank()) return ToolResponse.failure("NEWRELIC_DASHBOARD_GUID", "guid required");
-        String query = "{ actor { entity(guid: \\\"" + request.guid() + "\\\") { name "
-                + "... on DashboardEntity { pages { name guid widgets { title visualization { id } rawConfiguration } } } } } }";
-        return client.query("{\"query\":\"" + query + "\"}", context);
+        String query;
+        if (queryService.exists("newrelic/get_dashboard.graphql")) {
+            query = queryService.render("newrelic/get_dashboard.graphql", Map.of("guid", request.guid()));
+        } else {
+            query = "{ actor { entity(guid: \\\"" + request.guid() + "\\\") { name "
+                + "... on DashboardEntity { pages { name guid widgets { title visualization { id } rawConfiguration "
+                + "configuration { ... on NrqlWidgetConfiguration { nrqlQueries { query } } } } } } } } }";
+        }
+        return client.query("{\"query\":\"" + query.replace("\n", " ").replace("\"", "\\\"") + "\"}", context);
     }
 
     private ToolResponse validate(ToolRequest request) {
@@ -115,25 +124,38 @@ public final class NewRelicTool implements Tool {
     }
 
     private ToolResponse listDashboards(DashboardRequest request, ToolContext context) {
-        String query = "{ actor { entitySearch(query: \\\"type = 'DASHBOARD'"
-                + (request.name().isBlank() ? "" : " AND name LIKE '%" + request.name() + "%'")
-                + "\\\") { results { entities { guid name } } } } }";
-        return client.query("{\"query\":\"" + query + "\"}", context);
+        String nameFilter = request.name().isBlank() ? "" : " AND name LIKE '%" + request.name() + "%'";
+        String query;
+        if (queryService.exists("newrelic/list_dashboards.graphql")) {
+            query = queryService.render("newrelic/list_dashboards.graphql", Map.of("nameFilter", nameFilter));
+        } else {
+            query = "{ actor { entitySearch(query: \\\"type = 'DASHBOARD'" + nameFilter + "\\\") { results { entities { guid name } } } } }";
+        }
+        return client.query("{\"query\":\"" + query.replace("\n", " ").replace("\"", "\\\"") + "\"}", context);
     }
 
     private ToolResponse listApplications(ToolRequest request, ToolContext context) {
         String name = String.valueOf(request.payload().getOrDefault("name", ""));
-        String query = "{ actor { entitySearch(query: \\\"type = 'APPLICATION' "
-                + (name.isBlank() ? "" : "AND name LIKE '%" + name + "%' ")
-                + "\\\") { results { entities { guid name } } } } }";
-        return client.query("{\"query\":\"" + query + "\"}", context);
+        String nameFilter = name.isBlank() ? "" : "AND name LIKE '%" + name + "%' ";
+        String query;
+        if (queryService.exists("newrelic/list_apps.graphql")) {
+            query = queryService.render("newrelic/list_apps.graphql", Map.of("nameFilter", nameFilter));
+        } else {
+            query = "{ actor { entitySearch(query: \\\"type = 'APPLICATION' " + nameFilter + "\\\") { results { entities { guid name } } } } }";
+        }
+        return client.query("{\"query\":\"" + query.replace("\n", " ").replace("\"", "\\\"") + "\"}", context);
     }
 
     private ToolResponse listExternalServices(ToolRequest request, ToolContext context) {
         String accountId = String.valueOf(request.payload().getOrDefault("accountId", context.envOrDefault("NEWRELIC_ACCOUNT_ID", "")));
         String querySnippet = accountId.isBlank() ? "type = 'EXT'" : "type = 'EXT' AND accountId = " + accountId;
-        String query = "{ actor { entitySearch(query: \\\"" + querySnippet + "\\\") { results { entities { guid name } } } } }";
-        return client.query("{\"query\":\"" + query + "\"}", context);
+        String query;
+        if (queryService.exists("newrelic/list_external_services.graphql")) {
+            query = queryService.render("newrelic/list_external_services.graphql", Map.of("querySnippet", querySnippet));
+        } else {
+            query = "{ actor { entitySearch(query: \\\"" + querySnippet + "\\\") { results { entities { guid name } } } } }";
+        }
+        return client.query("{\"query\":\"" + query.replace("\n", " ").replace("\"", "\\\"") + "\"}", context);
     }
 
     private static final int DEFAULT_TIME_WINDOW = 5;
@@ -181,7 +203,18 @@ public final class NewRelicTool implements Tool {
 
     private DashboardRequest dashboardRequestFrom(final ToolRequest request) {
         Map<String, Object> p = request.payload();
-        return new DashboardRequest(String.valueOf(p.getOrDefault("guid", "")), String.valueOf(p.getOrDefault("name", "")), String.valueOf(p.getOrDefault("compareWith", "")), String.valueOf(p.getOrDefault("pageGuid", "")));
+        int duration = 0;
+        try {
+            Object d = p.get("duration");
+            if (d != null) duration = Integer.parseInt(String.valueOf(d));
+        } catch (Exception e) {}
+        return new DashboardRequest(
+            String.valueOf(p.getOrDefault("guid", "")),
+            String.valueOf(p.getOrDefault("name", "")),
+            String.valueOf(p.getOrDefault("compareWith", "")),
+            String.valueOf(p.getOrDefault("pageGuid", "")),
+            duration
+        );
     }
 
     private ToolResponse runQuery(final NrqlQueryRequest qr, final ToolContext ctx) {

@@ -1,5 +1,6 @@
 package com.prodbuddy.tools.graphql;
 
+import com.prodbuddy.core.system.QueryService;
 import com.prodbuddy.core.tool.Tool;
 import com.prodbuddy.core.tool.ToolContext;
 import com.prodbuddy.core.tool.ToolMetadata;
@@ -23,19 +24,30 @@ public final class GraphQLTool implements Tool {
     private final GraphQLClient client;
     /** JSON mapper. */
     private final ObjectMapper mapper;
+    /** Introspection builder. */
+    private final IntrospectionQueryBuilder introspectionBuilder;
+    /** Query service. */
+    private final QueryService queryService;
 
     /** Constructor. */
     public GraphQLTool() {
-        this(new GraphQLClient());
+        this(new GraphQLClient(), new QueryService());
     }
 
     /**
      * Protected constructor for testing.
      * @param gqlClient GraphQL client.
+     * @param qs Query service.
      */
-    protected GraphQLTool(final GraphQLClient gqlClient) {
+    protected GraphQLTool(final GraphQLClient gqlClient, final QueryService qs) {
         this.client = gqlClient;
+        this.queryService = qs;
+        this.introspectionBuilder = new IntrospectionQueryBuilder(qs);
         this.mapper = new ObjectMapper();
+    }
+    
+    protected GraphQLTool(final GraphQLClient gqlClient) {
+        this(gqlClient, new QueryService());
     }
 
     @Override
@@ -111,7 +123,7 @@ public final class GraphQLTool implements Tool {
                                           final Map<String, Object> auth) {
         try {
             String response = client.execute(url,
-                    IntrospectionQueryBuilder.getFullIntrospectionQuery(),
+                    introspectionBuilder.getFullIntrospectionQuery(),
                     null, auth);
             return ToolResponse.ok(Map.of("schema", mapper.readTree(response)));
         } catch (Exception e) {
@@ -123,7 +135,7 @@ public final class GraphQLTool implements Tool {
                                       final Map<String, Object> auth) {
         try {
             String response = client.execute(url,
-                    IntrospectionQueryBuilder.getOperationsSummaryQuery(),
+                    introspectionBuilder.getOperationsSummaryQuery(),
                     null, auth);
             JsonNode root = mapper.readTree(response);
             JsonNode schema = root.path("data").path("__schema");

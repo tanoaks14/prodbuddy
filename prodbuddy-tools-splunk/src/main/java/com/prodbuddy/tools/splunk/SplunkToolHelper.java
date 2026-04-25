@@ -4,14 +4,11 @@ import com.prodbuddy.core.tool.ToolContext;
 import com.prodbuddy.core.tool.ToolRequest;
 import com.prodbuddy.core.tool.ToolResponse;
 
-import java.io.IOException;
-import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.charset.StandardCharsets;
-import java.net.URLEncoder;
 import java.net.URI;
-import java.time.Duration;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -52,65 +49,12 @@ final class SplunkToolHelper {
      */
     static ToolResponse exceptionFailure(final Exception ex,
                                          final String attempted) {
-        return ToolResponse.failure(
-                ex instanceof java.io.IOException ? "SPLUNK_IO_ERROR" : "SPLUNK_ERROR",
+        String code = ex instanceof java.io.IOException
+                ? "SPLUNK_IO_ERROR" : "SPLUNK_ERROR";
+        return ToolResponse.failure(code,
                 ex.getMessage() + " (attempted=" + attempted + ")",
                 java.util.Map.of("body", String.valueOf(ex.getMessage()))
         );
-    }
-
-    /**
-     * Resolves a credential from payload or environment.
-     * @param payloadKey Key in payload.
-     * @param envKey Key in environment.
-     * @param request Tool request.
-     * @param context Tool context.
-     * @return Resolved credential.
-     */
-    static String resolveCredential(
-            final String payloadKey, final String envKey,
-            final ToolRequest request, final ToolContext context) {
-        Object payloadValue = request.payload().get(payloadKey);
-        if (payloadValue != null && !String.valueOf(payloadValue).isBlank()) {
-            return String.valueOf(payloadValue);
-        }
-        return context.env(envKey);
-    }
-
-    /**
-     * Builds the login body.
-     * @param username Splunk username.
-     * @param password Splunk password.
-     * @return URL-encoded login body.
-     */
-    static String buildLoginBody(final String username, final String password) {
-        return "username=" + URLEncoder.encode(username, StandardCharsets.UTF_8)
-                + "&password=" + URLEncoder.encode(password,
-                StandardCharsets.UTF_8) + "&output_mode=json";
-    }
-
-    /**
-     * Extracts session key from response body.
-     * @param body Response body.
-     * @param jsonPattern JSON pattern.
-     * @param xmlPattern XML pattern.
-     * @return Session key or null.
-     */
-    static String extractSessionKey(
-            final String body, final Pattern jsonPattern,
-            final Pattern xmlPattern) {
-        if (body == null || body.isBlank()) {
-            return null;
-        }
-        Matcher json = jsonPattern.matcher(body);
-        if (json.find()) {
-            return json.group(1);
-        }
-        Matcher xml = xmlPattern.matcher(body);
-        if (xml.find()) {
-            return xml.group(1);
-        }
-        return null;
     }
 
     /**
@@ -165,20 +109,6 @@ final class SplunkToolHelper {
     }
 
     /**
-     * Resolves the authentication mode.
-     * @param req Tool request.
-     * @param ctx Tool context.
-     * @param defaultMode Default mode.
-     * @return Resolved mode.
-     */
-    static String resolveAuthMode(final ToolRequest req, final ToolContext ctx,
-                                  final String defaultMode) {
-        return String.valueOf(req.payload().getOrDefault("authMode",
-                ctx.envOrDefault("SPLUNK_AUTH_MODE", defaultMode)))
-                .toLowerCase();
-    }
-
-    /**
      * Resolves a value from payload or environment.
      * @param req Tool request.
      * @param ctx Tool context.
@@ -194,41 +124,58 @@ final class SplunkToolHelper {
     }
 
     /**
-     * Resolves if authentication is enabled.
-     * @param req Tool request.
-     * @param ctx Tool context.
-     * @return true if enabled.
+     * Builds response data map.
+     * @param response HTTP response.
+     * @param op Operation.
+     * @param mode Mode.
+     * @param toolRequest Tool request.
+     * @param context Tool context.
+     * @return Data map.
      */
-    static boolean resolveAuthEnabled(final ToolRequest req,
-                                      final ToolContext ctx) {
-        return Boolean.parseBoolean(String.valueOf(req.payload().getOrDefault(
-                "authEnabled", ctx.envOrDefault("SPLUNK_AUTH_ENABLED",
-                        "true"))));
+    static Map<String, Object> buildResponseData(
+            final HttpResponse<String> response, final String op,
+            final String mode, final ToolRequest toolRequest,
+            final ToolContext context) {
+        final boolean noTrunc = Boolean.parseBoolean(String.valueOf(
+                toolRequest.payload().getOrDefault("noTruncate", "false")));
+        final int maxChars = noTrunc ? Integer.MAX_VALUE : Integer.parseInt(
+                String.valueOf(toolRequest.payload().getOrDefault(
+                        "maxOutputChars", context.envOrDefault(
+                                "SPLUNK_MAX_OUTPUT_CHARS", "20000"))));
+        String body = response.body();
+        String finalBody = (body != null && body.length() > maxChars)
+                ? body.substring(0, maxChars) : body;
+        Map<String, Object> data = new HashMap<>();
+        data.put("status", response.statusCode());
+        data.put("body", finalBody);
+        data.put("op", op);
+        data.put("mode", mode);
+        data.put("truncated", body != null && body.length() > maxChars);
+        String sid = extractSid(body);
+        if (sid != null) {
+            data.put("sid", sid);
+        }
+        return data;
     }
 
     /**
-     * Executes login.
-     * @param client HTTP client.
-     * @param baseUrl Base URL.
-     * @param user Username.
-     * @param pass Password.
-     * @param timeout Timeout.
-     * @return Response body.
-     * @throws IOException on error.
-     * @throws InterruptedException on error.
+     * Applies auth and headers to request builder.
+     * @param b Builder.
+     * @param auth Auth value.
+     * @param mode Mode.
+     * @param payload Payload.
      */
-    static String executeLogin(final HttpClient client, final String baseUrl,
-                               final String user, final String pass,
-                               final int timeout)
-            throws IOException, InterruptedException {
-        HttpRequest loginReq = HttpRequest.newBuilder()
-                .uri(URI.create(baseUrl + "/services/auth/login"))
-                .timeout(Duration.ofSeconds(timeout))
-                .header("Content-Type", "application/x-www-form-urlencoded")
-                .POST(HttpRequest.BodyPublishers.ofString(
-                        buildLoginBody(user, pass)))
-                .build();
-        return client.send(loginReq, HttpResponse.BodyHandlers.ofString())
-                .body();
+    static void applyAuthAndHeaders(final HttpRequest.Builder b,
+                                     final String auth, final String mode,
+                                     final Map<String, Object> payload) {
+        if (auth != null && !auth.isBlank()) {
+            b.header("cookie".equals(mode) ? "Cookie" : "Authorization",
+                    auth);
+        }
+        Object headers = payload.get("headers");
+        if (headers instanceof Map<?, ?> headerMap) {
+            headerMap.forEach((k, v) -> b.header(String.valueOf(k),
+                    String.valueOf(v)));
+        }
     }
 }

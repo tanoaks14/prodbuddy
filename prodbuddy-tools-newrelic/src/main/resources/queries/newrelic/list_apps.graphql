@@ -1,0 +1,12 @@
+{
+  actor {
+    entitySearch(query: "type = 'APPLICATION' ${nameFilter}") {
+      results {
+        entities {
+          guid
+          name
+        }
+      }
+    }
+  }
+}

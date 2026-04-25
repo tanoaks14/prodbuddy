@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import com.prodbuddy.core.system.QueryService;
 import com.prodbuddy.core.tool.ToolContext;
 import com.prodbuddy.core.tool.ToolRequest;
 
@@ -15,6 +16,24 @@ public final class SplunkQueryBuilder {
     /** Default fallback search. */
     private static final String DEFAULT_SEARCH =
             "search index=_internal | head 10";
+
+    /** Query service. */
+    private final QueryService queryService;
+
+    /**
+     * Default constructor.
+     */
+    public SplunkQueryBuilder() {
+        this(new QueryService());
+    }
+
+    /**
+     * Constructor with QueryService.
+     * @param qs Query service.
+     */
+    public SplunkQueryBuilder(final QueryService qs) {
+        this.queryService = qs;
+    }
 
     /**
      * Resolves the search query.
@@ -34,15 +53,18 @@ public final class SplunkQueryBuilder {
             return normalizeSearch(composed);
         }
 
-        return normalizeSearch(
-                String.valueOf(
-                        request.payload().getOrDefault(
-                                "search",
-                                context.envOrDefault("SPLUNK_DEFAULT_SEARCH",
-                                        DEFAULT_SEARCH)
-                        )
+        String fallback = String.valueOf(
+                request.payload().getOrDefault(
+                        "search",
+                        context.envOrDefault("SPLUNK_DEFAULT_SEARCH",
+                                DEFAULT_SEARCH)
                 )
         );
+        if (queryService.exists("splunk/default_search.spl")) {
+            return normalizeSearch(queryService.render(
+                    "splunk/default_search.spl", Map.of()));
+        }
+        return normalizeSearch(fallback);
     }
 
     private String extractSearchFromPayload(final Map<String, Object> payload) {
@@ -120,22 +142,28 @@ public final class SplunkQueryBuilder {
 
     private void appendStandardParams(final StringBuilder builder,
                                       final Map<String, Object> payload) {
-        appendOptional(builder, "earliest_time", findParam(payload, "earliestTime", "earliest_time"));
-        appendOptional(builder, "latest_time", findParam(payload, "latestTime", "latest_time"));
+        appendOptional(builder, "earliest_time",
+                findParam(payload, "earliestTime", "earliest_time"));
+        appendOptional(builder, "latest_time",
+                findParam(payload, "latestTime", "latest_time"));
         appendOptional(builder, "count", findParam(payload, "count"));
-        appendOptional(builder, "exec_mode", findParam(payload, "execMode", "exec_mode"));
-        
-        boolean hasOutputMode = payload.containsKey("outputMode") || payload.containsKey("output_mode");
+        appendOptional(builder, "exec_mode",
+                findParam(payload, "execMode", "exec_mode"));
+
+        boolean hasOutputMode = payload.containsKey("outputMode")
+                || payload.containsKey("output_mode");
         if (!hasOutputMode && payload.get("params") instanceof Map<?, ?> pMap) {
-            hasOutputMode = pMap.containsKey("outputMode") || pMap.containsKey("output_mode");
+            hasOutputMode = pMap.containsKey("outputMode")
+                    || pMap.containsKey("output_mode");
         }
-        
+
         if (!hasOutputMode) {
             appendOptional(builder, "output_mode", "json");
         }
     }
 
-    private Object findParam(final Map<String, Object> payload, final String... keys) {
+    private Object findParam(final Map<String, Object> payload,
+                             final String... keys) {
         Object val = first(payload, keys);
         if (val == null && payload.get("params") instanceof Map<?, ?> pMap) {
             val = first((Map<String, Object>) pMap, keys);
@@ -188,7 +216,8 @@ public final class SplunkQueryBuilder {
                 String.valueOf(value), StandardCharsets.UTF_8));
     }
 
-    private Object first(final Map<String, Object> payload, final String... keys) {
+    private Object first(final Map<String, Object> payload,
+                         final String... keys) {
         for (String key : keys) {
             Object val = payload.get(key);
             if (val != null) {

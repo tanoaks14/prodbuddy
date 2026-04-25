@@ -10,7 +10,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.HashMap;
 import java.util.regex.Pattern;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 
+import com.prodbuddy.core.system.QueryService;
 import com.prodbuddy.core.tool.Tool;
 import com.prodbuddy.core.tool.ToolContext;
 import com.prodbuddy.core.tool.ToolMetadata;
@@ -21,25 +24,38 @@ import com.prodbuddy.observation.Slf4jSequenceLogger;
 
 /** Splunk search tool implementation. */
 public final class SplunkTool implements Tool {
+    /** Tool name. */
     private static final String NAME = "splunk";
+    /** Token auth mode. */
     private static final String MODE_TOKEN = "token";
+    /** User auth mode. */
     private static final String MODE_USER = "user";
+    /** SSO auth mode. */
     private static final String MODE_SSO = "sso";
+    /** Session auth mode. */
     private static final String MODE_SESSION = "session";
+    /** Cookie auth mode. */
     private static final String MODE_COOKIE = "cookie";
+    /** Session key JSON pattern. */
     private static final Pattern SESSION_KEY_JSON = Pattern.compile(
             "\"sessionKey\"\\s*:\\s*\"([^\"]+)\"");
+    /** Session key XML pattern. */
     private static final Pattern SESSION_KEY_XML = Pattern.compile(
             "<sessionKey>([^<]+)</sessionKey>");
 
+    /** Default timeout. */
     private static final int DEFAULT_TIMEOUT = 20;
+    /** HTTP OK. */
     private static final int HTTP_OK = 200;
+    /** HTTP Bad Request. */
     private static final int HTTP_BAD_REQUEST = 400;
 
     /** Operation guard. */
     private final SplunkOperationGuard guard;
     /** Query builder. */
     private final SplunkQueryBuilder queryBuilder;
+    /** Query service. */
+    private final QueryService queryService;
     /** HTTP client. */
     private final HttpClient client;
     /** Sequence logger. */
@@ -50,7 +66,24 @@ public final class SplunkTool implements Tool {
      * @param operationGuard Operation guard.
      */
     public SplunkTool(final SplunkOperationGuard operationGuard) {
-        this(operationGuard, SplunkHttpClientFactory.buildInsecure());
+        this(operationGuard, SplunkHttpClientFactory.buildInsecure(),
+                new QueryService());
+    }
+
+    /**
+     * Protected constructor for testing.
+     * @param operationGuard Operation guard.
+     * @param httpClient HTTP client.
+     * @param qs Query service.
+     */
+    protected SplunkTool(final SplunkOperationGuard operationGuard,
+                         final HttpClient httpClient,
+                         final QueryService qs) {
+        this.guard = operationGuard;
+        this.queryService = qs;
+        this.queryBuilder = new SplunkQueryBuilder(qs);
+        this.client = httpClient;
+        this.seqLog = new Slf4jSequenceLogger(SplunkTool.class);
     }
 
     /**
@@ -60,10 +93,7 @@ public final class SplunkTool implements Tool {
      */
     protected SplunkTool(final SplunkOperationGuard operationGuard,
                          final HttpClient httpClient) {
-        this.guard = operationGuard;
-        this.queryBuilder = new SplunkQueryBuilder();
-        this.client = httpClient;
-        this.seqLog = new Slf4jSequenceLogger(SplunkTool.class);
+        this(operationGuard, httpClient, new QueryService());
     }
 
     @Override
@@ -102,11 +132,36 @@ public final class SplunkTool implements Tool {
         return performOperation(request, context, baseUrl, op);
     }
 
+    private ToolResponse handleExecute(final ToolRequest request,
+                                       final ToolContext context) {
+        String base = SplunkToolHelper.resolveValue(request, context,
+                "baseUrl", "SPLUNK_BASE_URL");
+        if (base == null || base.isBlank()) {
+            return ToolResponse.failure("SPLUNK_BASE_URL", "base required");
+        }
+        String op = String.valueOf(request.payload().getOrDefault("operation",
+                "search/jobs"));
+        String search = queryBuilder.resolveSearch(request, context);
+        String path = "servicesNS/-/-/" + op;
+        boolean authEnabled = SplunkAuthHelper.resolveAuthEnabled(request,
+                context);
+        String authMode = SplunkAuthHelper.resolveAuthMode(request, context,
+                MODE_TOKEN);
+        String auth = authEnabled ? resolveValidAuthHeaderOrThrow(request,
+                context, base) : null;
+        String method = "search/jobs/export".equals(op) ? "GET" : "POST";
+        String body = "search=" + URLEncoder.encode(search,
+                StandardCharsets.UTF_8);
+        HttpRequest req = buildRequest(base, path, body, auth, authMode,
+                method, request.payload());
+        return send(req, op, search, path, authMode, request, context);
+    }
+
     ToolResponse performOperation(final ToolRequest request,
                                   final ToolContext context,
                                   final String baseUrl,
                                   final String op) {
-        String mode = SplunkToolHelper.resolveAuthMode(request, context,
+        String mode = SplunkAuthHelper.resolveAuthMode(request, context,
                 MODE_TOKEN);
         String auth;
         try {
@@ -140,11 +195,11 @@ public final class SplunkTool implements Tool {
     String resolveValidAuthHeaderOrThrow(
             final ToolRequest req, final ToolContext ctx,
             final String baseUrl) {
-        boolean enabled = SplunkToolHelper.resolveAuthEnabled(req, ctx);
+        boolean enabled = SplunkAuthHelper.resolveAuthEnabled(req, ctx);
         if (!enabled) {
             return null;
         }
-        String mode = SplunkToolHelper.resolveAuthMode(req, ctx, MODE_TOKEN);
+        String mode = SplunkAuthHelper.resolveAuthMode(req, ctx, MODE_TOKEN);
         String header = switch (mode) {
             case MODE_USER -> loginAndBuildAuthValue(req, ctx, baseUrl, false);
             case MODE_SSO, MODE_SESSION -> resolveHeader(req, ctx, "sessionKey",
@@ -184,8 +239,8 @@ public final class SplunkTool implements Tool {
                     || body.contains("\"type\":\"FATAL\"")) {
                 return SplunkToolHelper.httpFailure(response, attempted);
             }
-            return ToolResponse.ok(buildResponseData(response, op, mode,
-                    toolRequest, context));
+            return ToolResponse.ok(SplunkToolHelper.buildResponseData(
+                    response, op, mode, toolRequest, context));
         } catch (IOException | InterruptedException ex) {
             if (ex instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
@@ -193,58 +248,13 @@ public final class SplunkTool implements Tool {
             return SplunkToolHelper.exceptionFailure(ex, attempted);
         }
     }
-    private Map<String, Object> buildResponseData(
-            final HttpResponse<String> response, final String op,
-            final String mode, final ToolRequest toolRequest,
-            final ToolContext context) {
-        final boolean noTrunc = Boolean.parseBoolean(String.valueOf(
-                toolRequest.payload().getOrDefault("noTruncate", "false")));
-        final int maxChars = noTrunc ? Integer.MAX_VALUE : Integer.parseInt(
-                String.valueOf(toolRequest.payload().getOrDefault(
-                        "maxOutputChars", context.envOrDefault(
-                                "SPLUNK_MAX_OUTPUT_CHARS", "20000"))));
-        String body = response.body();
-        String finalBody = (body != null && body.length() > maxChars)
-                ? body.substring(0, maxChars) : body;
-        Map<String, Object> data = new HashMap<>();
-        data.put("status", response.statusCode());
-        data.put("body", finalBody);
-        data.put("op", op);
-        data.put("mode", mode);
-        data.put("truncated", body != null && body.length() > maxChars);
-        String sid = SplunkToolHelper.extractSid(body);
-        if (sid != null) {
-            data.put("sid", sid);
-        }
-        return data;
-    }
 
     private String loginAndBuildAuthValue(
             final ToolRequest req, final ToolContext ctx,
             final String baseUrl, final boolean isCookie) {
-        String user = SplunkToolHelper.resolveCredential("username",
-                "SPLUNK_USERNAME", req, ctx);
-        String pass = SplunkToolHelper.resolveCredential("password",
-                "SPLUNK_PASSWORD", req, ctx);
-        if (user == null || pass == null) {
-            return null;
-        }
-        try {
-            String body = SplunkToolHelper.executeLogin(client, baseUrl, user,
-                    pass, DEFAULT_TIMEOUT);
-            String key = SplunkToolHelper.extractSessionKey(body,
-                    SESSION_KEY_JSON, SESSION_KEY_XML);
-            if (key == null) {
-                throw new RuntimeException("Splunk auth failed: " + body);
-            }
-            return isCookie ? "splunkd_" + SplunkToolHelper.extractPort(baseUrl)
-                    + "=" + key : "Splunk " + key;
-        } catch (IOException | InterruptedException ex) {
-            if (ex instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-            }
-            throw new RuntimeException("Splunk error: " + ex.getMessage(), ex);
-        }
+        return SplunkAuthHelper.loginAndBuildAuthValue(client, req, ctx,
+                baseUrl, isCookie, SESSION_KEY_JSON, SESSION_KEY_XML,
+                DEFAULT_TIMEOUT);
     }
 
     private HttpRequest buildRequest(
@@ -261,12 +271,12 @@ public final class SplunkTool implements Tool {
         } else {
             b.GET();
         }
-        applyAuthAndHeaders(b, auth, mode, payload);
+        SplunkToolHelper.applyAuthAndHeaders(b, auth, mode, payload);
         return b.build();
     }
 
     private String buildUrl(final String base, final String path,
-                            final String body, final String method) {
+                             final String body, final String method) {
         String fullPath = path.startsWith("/") ? path : "/" + path;
         String url;
         if ("GET".equalsIgnoreCase(method) && !body.isBlank()) {
@@ -280,19 +290,5 @@ public final class SplunkTool implements Tool {
                     + url);
         }
         return url;
-    }
-
-    private void applyAuthAndHeaders(final HttpRequest.Builder b,
-                                     final String auth, final String mode,
-                                     final Map<String, Object> payload) {
-        if (auth != null && !auth.isBlank()) {
-            b.header(MODE_COOKIE.equals(mode) ? "Cookie" : "Authorization",
-                    auth);
-        }
-        Object headers = payload.get("headers");
-        if (headers instanceof Map<?, ?> headerMap) {
-            headerMap.forEach((k, v) -> b.header(String.valueOf(k),
-                    String.valueOf(v)));
-        }
     }
 }

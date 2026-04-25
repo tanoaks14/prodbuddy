@@ -12,13 +12,13 @@ class SplunkToolHelperTest {
     @Test
     void testExtractSessionKeyJson() {
         String body = "{\"sessionKey\":\"abc-123-xyz\"}";
-        assertEquals("abc-123-xyz", SplunkToolHelper.extractSessionKey(body, JSON_PATTERN, XML_PATTERN));
+        assertEquals("abc-123-xyz", SplunkAuthHelper.extractSessionKey(body, JSON_PATTERN, XML_PATTERN));
     }
 
     @Test
     void testExtractSessionKeyXml() {
         String body = "<response><sessionKey>xml-key-456</sessionKey></response>";
-        assertEquals("xml-key-456", SplunkToolHelper.extractSessionKey(body, JSON_PATTERN, XML_PATTERN));
+        assertEquals("xml-key-456", SplunkAuthHelper.extractSessionKey(body, JSON_PATTERN, XML_PATTERN));
     }
 
     @Test
