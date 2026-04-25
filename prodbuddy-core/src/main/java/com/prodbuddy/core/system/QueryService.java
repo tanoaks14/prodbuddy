@@ -16,7 +16,7 @@ import java.util.stream.Collectors;
 public final class QueryService {
 
     private final Map<String, String> cache = new ConcurrentHashMap<>();
-    private static final Pattern PLACEHOLDER_PATTERN = Pattern.compile("(\\$\\{|\\{\\{)([^}]+)(\\}|\\}\\})");
+    private static final Pattern PLACEHOLDER_PATTERN = Pattern.compile("\\$\\{([^}]+)\\}|\\{\\{([^}]+)\\}\\}");
 
     /**
      * Renders a query from the classpath with given parameters.
@@ -68,7 +68,8 @@ public final class QueryService {
         int lastEnd = 0;
         while (matcher.find()) {
             result.append(template, lastEnd, matcher.start());
-            String key = matcher.group(2).trim();
+            String key = matcher.group(1) != null ? matcher.group(1) : matcher.group(2);
+            key = key.trim();
             Object value = params.get(key);
             result.append(value != null ? String.valueOf(value) : matcher.group(0));
             lastEnd = matcher.end();

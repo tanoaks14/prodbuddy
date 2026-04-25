@@ -113,14 +113,15 @@ public final class DashboardDataService {
                                     final DashboardRequest req,
                                     final ToolContext ctx) {
         java.util.regex.Pattern p = java.util.regex.Pattern.compile(
-                "(\\$\\{|\\{\\{)([^}]+)(\\}|\\}\\})");
+                "\\$\\{([^}]+)\\}|\\{\\{([^}]+)\\}\\}");
         java.util.regex.Matcher m = p.matcher(query);
         StringBuilder sb = new StringBuilder();
         int last = 0;
         boolean hasUnresolved = false;
         while (m.find()) {
             sb.append(query, last, m.start());
-            String var = m.group(2).trim();
+            String key = m.group(1) != null ? m.group(1) : m.group(2);
+            String var = key.trim();
             String val = getVariableValue(var, req, ctx);
             if (val != null) {
                 sb.append(val);
