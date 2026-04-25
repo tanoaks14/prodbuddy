@@ -78,25 +78,31 @@ public final class JsonTool implements Tool {
     }
 
     private ToolResponse runExtract(final String data, final Map<String, Object> req) {
-        Map<String, String> paths = (Map<String, String>) req.get("paths");
-        Map<String, String> regex = (Map<String, String>) req.get("regex");
-        seqLog.logSequence(NAME, "JsonAnalyzer", "extract", "Extracting values from JSON");
+        Object pathsObj = req.get("paths");
+        Object regexObj = req.get("regex");
+        
+        com.prodbuddy.observation.ObservationContext.log(NAME, "JsonAnalyzer", "extract", "Extracting values");
 
         Map<String, Object> results = new java.util.HashMap<>();
         Map<String, List<String>> traces = new java.util.HashMap<>();
 
-        if (paths != null) {
-            for (Map.Entry<String, String> entry : paths.entrySet()) {
-                JsonAnalyzer.TraceResult tr = analyzer.walkWithTrace(data, entry.getValue());
-                traces.put(entry.getKey() + "_trace", tr.trace());
+        if (pathsObj instanceof Map<?, ?> paths) {
+            for (Map.Entry<?, ?> entry : paths.entrySet()) {
+                String key = String.valueOf(entry.getKey());
+                String path = String.valueOf(entry.getValue());
+                JsonAnalyzer.TraceResult tr = analyzer.walkWithTrace(data, path);
+                traces.put(key + "_trace", tr.trace());
                 if (tr.node() != null && !tr.node().isMissingNode()) {
-                    results.put(entry.getKey(), tr.node().isContainerNode()
+                    results.put(key, tr.node().isContainerNode()
                             ? tr.node().toString() : tr.node().asText());
                 }
             }
         }
-        // Simplified regex part for brevity
-        results.putAll(results);
+        
+        if (regexObj instanceof Map<?, ?> regex) {
+            // Future regex extraction logic
+        }
+
         results.put("debug_traces", traces);
         return ToolResponse.ok(results);
     }

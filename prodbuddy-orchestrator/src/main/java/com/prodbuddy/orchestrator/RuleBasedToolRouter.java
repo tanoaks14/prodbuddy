@@ -66,6 +66,9 @@ public final class RuleBasedToolRouter implements ToolRouter {
         if (res.isPresent()) {
             return res;
         }
+        if (isObservationIntent(intent)) {
+            return Optional.of("observation");
+        }
         return evaluateUtilityRoute(intent);
     }
 
@@ -161,5 +164,9 @@ public final class RuleBasedToolRouter implements ToolRouter {
 
     private boolean isGraphQLIntent(final String intent) {
         return intent.contains("graphql") || intent.contains("gql");
+    }
+
+    private boolean isObservationIntent(final String intent) {
+        return intent.contains("observation") || intent.contains("trace") || intent.contains("mermaid");
     }
 }

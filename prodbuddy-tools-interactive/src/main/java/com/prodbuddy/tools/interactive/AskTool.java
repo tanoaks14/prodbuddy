@@ -9,6 +9,7 @@ import com.prodbuddy.core.tool.ToolContext;
 import com.prodbuddy.core.tool.ToolMetadata;
 import com.prodbuddy.core.tool.ToolRequest;
 import com.prodbuddy.core.tool.ToolResponse;
+import com.prodbuddy.observation.ObservationContext;
 
 public final class AskTool implements Tool {
 
@@ -43,6 +44,7 @@ public final class AskTool implements Tool {
         Scanner scanner = new Scanner(System.in);
         if (scanner.hasNextLine()) {
             String response = scanner.nextLine();
+            ObservationContext.log("User", "Interactive", "answer", response);
             return ToolResponse.ok(Map.of("answer", response,
                     "status", "answered"));
         }
@@ -70,6 +72,7 @@ public final class AskTool implements Tool {
                 int choice = scanner.nextInt();
                 if (choice >= 1 && choice <= node.size()) {
                     com.fasterxml.jackson.databind.JsonNode selected = node.get(choice - 1);
+                    ObservationContext.log("User", "Interactive", "select", selected.toString());
                     return ToolResponse.ok(mapper.convertValue(selected, Map.class));
                 }
             }

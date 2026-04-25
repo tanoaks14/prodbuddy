@@ -25,6 +25,10 @@ import com.prodbuddy.tools.newrelic.NewRelicTool;
 import com.prodbuddy.tools.pdf.LocalOpenDataLoaderPdfAdapter;
 import com.prodbuddy.tools.pdf.PdfTool;
 import com.prodbuddy.tools.splunk.SplunkOperationGuard;
+import com.prodbuddy.observation.RecordingSequenceLogger;
+import com.prodbuddy.observation.Slf4jSequenceLogger;
+import com.prodbuddy.core.observation.ObservationTool;
+import com.prodbuddy.observation.SequenceLogger;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -53,9 +57,18 @@ public final class ToolBootstrap {
     }
 
     private List<Tool> createManualTools() {
+        RecordingSequenceLogger sharedLog = new RecordingSequenceLogger(
+                new Slf4jSequenceLogger(ToolBootstrap.class));
+        
+        // Initialize global context so SPI tools can also log
+        com.prodbuddy.observation.ObservationContext.setLogger(sharedLog);
+        
+        Tool observation = new ObservationTool(sharedLog);
         Tool pdf = new PdfTool(new LocalOpenDataLoaderPdfAdapter());
         Tool elasticsearch = new ElasticsearchTool(new ElasticsearchQueryBuilder());
-        Tool newRelic = new NewRelicTool(new NewRelicScenarioCatalog());
+        
+        Tool newRelic = new NewRelicTool(new NewRelicScenarioCatalog(), sharedLog);
+        
         Tool splunk = new SplunkTool(new SplunkOperationGuard());
         Tool http = new GenericApiTool(new HttpMethodSupport());
         Tool kubectl = new KubectlTool(new KubectlCommandBuilder());
@@ -65,6 +78,6 @@ public final class ToolBootstrap {
                 new JavaGraphExtractor(),
                 new LocalGraphDbService()
         );
-        return List.of(pdf, elasticsearch, newRelic, splunk, http, kubectl, codeContext);
+        return List.of(observation, pdf, elasticsearch, newRelic, splunk, http, kubectl, codeContext);
     }
 }

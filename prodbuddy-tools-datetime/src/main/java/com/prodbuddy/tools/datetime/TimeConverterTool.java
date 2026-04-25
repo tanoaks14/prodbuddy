@@ -11,6 +11,7 @@ import com.prodbuddy.core.tool.ToolContext;
 import com.prodbuddy.core.tool.ToolMetadata;
 import com.prodbuddy.core.tool.ToolRequest;
 import com.prodbuddy.core.tool.ToolResponse;
+import com.prodbuddy.observation.ObservationContext;
 
 public final class TimeConverterTool implements Tool {
 
@@ -25,12 +26,20 @@ public final class TimeConverterTool implements Tool {
 
     @Override
     public boolean supports(final ToolRequest request) {
-        return "convert".equals(request.operation());
+        String op = request.operation();
+        return "convert".equals(op) || "now".equals(op);
     }
 
     @Override
     public ToolResponse execute(final ToolRequest request,
                                 final ToolContext context) {
+        String op = request.operation();
+        ObservationContext.log("Orchestrator", "DateTime", op, "requested");
+        if ("now".equals(op)) {
+            return ToolResponse.ok(Map.of("value", Instant.now().toString(),
+                    "status", "now"));
+        }
+        
         String input = String.valueOf(request.payload().get("value"));
         String from = String.valueOf(request.payload()
                 .getOrDefault("from", "iso"));
