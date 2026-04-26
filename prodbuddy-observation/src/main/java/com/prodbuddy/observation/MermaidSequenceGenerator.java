@@ -17,8 +17,6 @@ public final class MermaidSequenceGenerator {
             return "%% No sequence events recorded";
         }
 
-        // Limit to first 200 events to prevent massive diagrams that fail to render
-        // Showing the start of the trace is usually more helpful for understanding flow
         final int limit = 200;
         boolean truncated = events.size() > limit;
         List<ObservationEvent> limited = truncated ? events.subList(0, limit) : events;
@@ -27,7 +25,14 @@ public final class MermaidSequenceGenerator {
         sb.append("sequenceDiagram\n");
         sb.append("    autonumber\n");
 
-        // Declare participants to handle special characters/spaces in names
+        appendParticipants(sb, limited);
+        appendEvents(sb, limited);
+        appendTruncationNote(sb, limited, truncated, limit);
+
+        return sb.toString();
+    }
+
+    private void appendParticipants(StringBuilder sb, List<ObservationEvent> limited) {
         java.util.Set<String> actors = new java.util.HashSet<>();
         for (ObservationEvent event : limited) {
             actors.add(event.getSender());
@@ -38,7 +43,9 @@ public final class MermaidSequenceGenerator {
             sb.append("    participant ").append(quote(actor))
               .append(" as ").append(getSafeActorId(actor)).append("\n");
         }
+    }
 
+    private void appendEvents(StringBuilder sb, List<ObservationEvent> limited) {
         for (ObservationEvent event : limited) {
             String s = getSafeActorId(event.getSender());
             String r = getSafeActorId(event.getReceiver());
@@ -52,14 +59,15 @@ public final class MermaidSequenceGenerator {
             }
             sb.append("\n");
         }
+    }
 
+    private void appendTruncationNote(StringBuilder sb, List<ObservationEvent> limited, 
+                                      boolean truncated, int limit) {
         if (truncated) {
             sb.append("    Note over ").append(getSafeActorId(limited.get(0).getSender()))
               .append(", ").append(getSafeActorId(limited.get(limited.size() - 1).getReceiver()))
               .append(": ... trace truncated after ").append(limit).append(" steps ...\n");
         }
-
-        return sb.toString();
     }
 
     private String getSafeActorId(final String name) {

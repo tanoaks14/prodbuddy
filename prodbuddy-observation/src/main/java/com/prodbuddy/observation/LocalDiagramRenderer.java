@@ -21,10 +21,19 @@ public final class LocalDiagramRenderer {
             return new byte[0];
         }
 
-        // Limit to last 50 events for readability
         List<ObservationEvent> limited = events.size() > 50 
             ? events.subList(events.size() - 50, events.size()) : events;
 
+        String plantUml = buildPlantUml(limited);
+        
+        SourceStringReader reader = new SourceStringReader(plantUml);
+        try (ByteArrayOutputStream os = new ByteArrayOutputStream()) {
+            reader.generateImage(os);
+            return os.toByteArray();
+        }
+    }
+
+    private String buildPlantUml(List<ObservationEvent> limited) {
         StringBuilder sb = new StringBuilder();
         sb.append("@startuml\n");
         sb.append("autonumber\n");
@@ -44,12 +53,7 @@ public final class LocalDiagramRenderer {
         }
 
         sb.append("@enduml");
-
-        SourceStringReader reader = new SourceStringReader(sb.toString());
-        try (ByteArrayOutputStream os = new ByteArrayOutputStream()) {
-            reader.generateImage(os);
-            return os.toByteArray();
-        }
+        return sb.toString();
     }
 
     private String sanitize(final String text, final int maxLength) {

@@ -23,7 +23,7 @@ class ToolRegistryTest {
             }
 
             @Override
-            public ToolResponse execute(ToolRequest request, ToolContext context) {
+            public ToolResponse execute(ToolRequest request, ToolContext context) throws ToolExecutionException {
                 return ToolResponse.ok(Map.of("ok", true));
             }
         };
