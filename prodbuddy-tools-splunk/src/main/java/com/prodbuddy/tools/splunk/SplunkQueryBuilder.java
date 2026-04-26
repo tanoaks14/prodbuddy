@@ -1,14 +1,14 @@
 package com.prodbuddy.tools.splunk;
 
+import com.prodbuddy.core.system.QueryService;
+import com.prodbuddy.core.tool.ToolContext;
+import com.prodbuddy.core.tool.ToolRequest;
+
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-
-import com.prodbuddy.core.system.QueryService;
-import com.prodbuddy.core.tool.ToolContext;
-import com.prodbuddy.core.tool.ToolRequest;
 
 /** Query builder for Splunk. */
 public final class SplunkQueryBuilder {

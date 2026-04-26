@@ -1,17 +1,11 @@
 package com.prodbuddy.orchestrator;
 
+import com.prodbuddy.core.tool.*;
+import com.prodbuddy.observation.SequenceLogger;
+
 import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
-
-import com.prodbuddy.core.tool.Tool;
-import com.prodbuddy.core.tool.ToolContext;
-import com.prodbuddy.core.tool.ToolRegistry;
-import com.prodbuddy.core.tool.ToolRequest;
-import com.prodbuddy.core.tool.ToolResponse;
-import com.prodbuddy.core.tool.ToolRouter;
-import com.prodbuddy.observation.SequenceLogger;
-import com.prodbuddy.observation.Slf4jSequenceLogger;
 
 public final class AgentLoopOrchestrator {
 
@@ -110,10 +104,11 @@ public final class AgentLoopOrchestrator {
             final ToolContext ctx,
             final int iter
     ) {
-        seqLog.logSequence("AgentLoopOrchestrator", target,
+        String capitalizedTarget = target.substring(0, 1).toUpperCase() + target.substring(1);
+        seqLog.logSequence("AgentLoopOrchestrator", capitalizedTarget,
                 "execute", "Executing tool");
         ToolResponse response = tool.execute(request, ctx);
-        seqLog.logSequence(target, "AgentLoopOrchestrator",
+        seqLog.logSequence(capitalizedTarget, "AgentLoopOrchestrator",
                 "execute", "Success: " + response.success());
 
         if (!response.success()) {

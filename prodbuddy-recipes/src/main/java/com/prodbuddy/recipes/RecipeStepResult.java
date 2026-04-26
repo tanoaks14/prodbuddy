@@ -1,9 +1,9 @@
 package com.prodbuddy.recipes;
 
+import com.prodbuddy.core.tool.ToolResponse;
+
 import java.util.Collections;
 import java.util.Map;
-
-import com.prodbuddy.core.tool.ToolResponse;
 
 public record RecipeStepResult(
         String stepName,

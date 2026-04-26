@@ -1,11 +1,11 @@
 package com.prodbuddy.recipes;
 
+import com.prodbuddy.core.tool.ToolError;
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-
-import com.prodbuddy.core.tool.ToolError;
 
 public final class RecipeReport {
 

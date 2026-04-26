@@ -1,12 +1,6 @@
 package com.prodbuddy.core.tool;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.ServiceLoader;
+import java.util.*;
 
 public final class ToolRegistry {
 
@@ -16,9 +10,26 @@ public final class ToolRegistry {
     public ToolRegistry(Collection<Tool> tools) {
         this.toolsByName = new LinkedHashMap<>();
         for (Tool tool : tools) {
-            toolsByName.put(tool.metadata().name(), tool);
+            String name = tool.metadata().name();
+            toolsByName.put(name, tool);
+            ToolStyling style = tool.styling();
+            if (style != null) {
+                com.prodbuddy.observation.ObservationStyling.register(
+                        name, style.displayName(), style.actorColor());
+            }
         }
+        registerDefaults();
         this.seqLog = com.prodbuddy.observation.ObservationContext.getLogger();
+    }
+
+    private void registerDefaults() {
+        com.prodbuddy.observation.ObservationStyling.register("client", "👤 Client", "#E1F5FE");
+        com.prodbuddy.observation.ObservationStyling.register("orchestrator", "🎼 Orchestrator", "#F5F5F5");
+        com.prodbuddy.observation.ObservationStyling.register("reciperunner", "📝 RecipeRunner", "#F5F5F5");
+        com.prodbuddy.observation.ObservationStyling.register("recipeclihandler", "⌨️ RecipeCLI", "#F5F5F5");
+        com.prodbuddy.observation.ObservationStyling.register("ruleengine", "🧠 RuleEngine", "#F5F5F5");
+        com.prodbuddy.observation.ObservationStyling.register("toolrouter", "🚦 ToolRouter", "#F5F5F5");
+        com.prodbuddy.observation.ObservationStyling.register("user", "👤 User", "#FFF9C4");
     }
 
     /**

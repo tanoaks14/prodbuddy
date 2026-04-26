@@ -1,8 +1,8 @@
 package com.prodbuddy.tools.newrelic;
 
-import java.util.Map;
-
 import com.prodbuddy.core.tool.ToolResponse;
+
+import java.util.Map;
 
 /**
  * Validator for NRQL query requests using guardrails.

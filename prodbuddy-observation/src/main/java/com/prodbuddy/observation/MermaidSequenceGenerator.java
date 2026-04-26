@@ -29,6 +29,7 @@ public final class MermaidSequenceGenerator {
                 ? events.subList(0, limit) : events;
 
         StringBuilder sb = new StringBuilder();
+        sb.append("%%{init: {'theme': 'neutral', 'themeVariables': { 'fontSize': '14px', 'fontFamily': 'arial' }}}%%\n");
         sb.append("sequenceDiagram\n");
         sb.append("    autonumber\n");
 
@@ -42,24 +43,17 @@ public final class MermaidSequenceGenerator {
     private void appendParticipants(final StringBuilder sb,
                                    final List<ObservationEvent> limited) {
         Map<String, String> actorToColor = new java.util.HashMap<>();
-        // First pass: collect all colors from metadata
-        for (ObservationEvent event : limited) {
-            updateActorColor(actorToColor, event.getSender(),
-                    event.getMetadata());
-            updateActorColor(actorToColor, event.getReceiver(),
-                    event.getMetadata());
-        }
-        // Second pass: apply defaults for those still empty
-        for (ObservationEvent event : limited) {
-            applyDefaultColorIfMissing(actorToColor, event.getSender());
-            applyDefaultColorIfMissing(actorToColor, event.getReceiver());
-        }
+        Map<String, String> actorToDisplayName = new java.util.HashMap<>();
+
+        collectStyling(actorToColor, actorToDisplayName, limited);
 
         for (Map.Entry<String, String> entry : actorToColor.entrySet()) {
             String actor = entry.getKey();
             String color = entry.getValue();
+            String displayName = actorToDisplayName.getOrDefault(actor, actor);
+
             sb.append("    participant ").append(getSafeActorId(actor))
-              .append(" as ").append(quote(actor));
+              .append(" as ").append(quote(displayName));
             if (!color.isEmpty()) {
                 sb.append(" ").append(color);
             }
@@ -67,36 +61,58 @@ public final class MermaidSequenceGenerator {
         }
     }
 
-    private void updateActorColor(final Map<String, String> map,
-                                  final String actor,
-                                  final Map<String, String> meta) {
+    private void collectStyling(final Map<String, String> colorMap,
+                                final Map<String, String> nameMap,
+                                final List<ObservationEvent> limited) {
+        for (ObservationEvent event : limited) {
+            updateActorStyling(colorMap, nameMap,
+                    event.getSender(), event.getMetadata());
+            updateActorStyling(colorMap, nameMap,
+                    event.getReceiver(), event.getMetadata());
+        }
+        for (ObservationEvent event : limited) {
+            applyDefaultStylingIfMissing(colorMap, nameMap,
+                    event.getSender());
+            applyDefaultStylingIfMissing(colorMap, nameMap,
+                    event.getReceiver());
+        }
+    }
+
+    private void updateActorStyling(final Map<String, String> colorMap,
+                                    final Map<String, String> nameMap,
+                                    final String actor,
+                                    final Map<String, String> meta) {
+        String styledActor = meta.get("styledActor");
+        if (styledActor != null && !styledActor.equalsIgnoreCase(actor)) {
+            return;
+        }
+
         String color = meta.getOrDefault("actorColor", "");
         if (!color.isEmpty()) {
-            map.put(actor, color);
-        } else if (!map.containsKey(actor)) {
-            map.put(actor, "");
+            colorMap.put(actor, color);
+        } else if (!colorMap.containsKey(actor)) {
+            colorMap.put(actor, "");
+        }
+
+        String displayName = meta.getOrDefault("displayName", "");
+        if (!displayName.isEmpty()) {
+            nameMap.put(actor, displayName);
         }
     }
 
-    private void applyDefaultColorIfMissing(final Map<String, String> map,
-                                            final String actor) {
-        if (map.getOrDefault(actor, "").isEmpty()) {
-            map.put(actor, getDefaultColorForTool(actor));
+    private void applyDefaultStylingIfMissing(
+            final Map<String, String> colorMap,
+            final Map<String, String> nameMap,
+            final String actor) {
+        ObservationStyling.Styling s = ObservationStyling.get(actor);
+        if (s != null) {
+            if (colorMap.getOrDefault(actor, "").isEmpty()) {
+                colorMap.put(actor, s.getColor());
+            }
+            if (!nameMap.containsKey(actor)) {
+                nameMap.put(actor, s.getDisplayName());
+            }
         }
-    }
-
-    private String getDefaultColorForTool(final String tool) {
-        String lower = tool.toLowerCase();
-        if (lower.contains("agent")) { return "#D1C4E9"; }
-        if (lower.contains("newrelic")) { return "#B2DFDB"; }
-        if (lower.contains("nerdgraph")) { return "#E0F2F1"; }
-        if (lower.contains("splunkapi")) { return "#FBE9E7"; }
-        if (lower.contains("splunk")) { return "#FFCCBC"; }
-        if (lower.contains("interactive")) { return "#FFF9C4"; }
-        if (lower.contains("elasticcluster")) { return "#E1F5FE"; }
-        if (lower.contains("elasticsearch")) { return "#B3E5FC"; }
-        if (lower.contains("observation")) { return "#F5F5F5"; }
-        return "";
     }
 
     private void appendEvents(final StringBuilder sb,
@@ -128,10 +144,10 @@ public final class MermaidSequenceGenerator {
         final String a = sanitizeLabel(event.getAction());
         final String noteText = meta.getOrDefault("noteText",
                 m + (a.isEmpty() ? "" : ": " + a));
-        
+
         final String noteColor = meta.getOrDefault("noteColor", "");
         final String textColor = meta.getOrDefault("textColor", "black");
-        
+
         sb.append("    Note over ").append(s).append(": ");
         if (!noteColor.isEmpty()) {
             sb.append("<span style='background-color:").append(noteColor)
@@ -155,18 +171,32 @@ public final class MermaidSequenceGenerator {
         final boolean isError = "error".equals(style)
                 || (a.startsWith("HTTP ") && !a.startsWith("HTTP 2"));
         if (isError) {
+            String err = "<span style='color:red'>!! " + a + " !!</span>";
             sb.append("    Note right of ").append(s)
-              .append(": <span style='color:red'>!! ")
-              .append(a).append(" !!</span>\n");
+              .append(": ").append(err).append("\n");
         }
 
-        final String arrow = isError ? "--x" : "->>";
+        String arrow = getMermaidArrow(m, a, isError);
         sb.append("    ").append(s).append(arrow).append(r)
           .append(": ").append(m);
         if (!a.isEmpty()) {
             sb.append(" (").append(a).append(")");
         }
         sb.append("\n");
+    }
+
+    private String getMermaidArrow(final String m, final String a,
+                                   final boolean isError) {
+        if (isError) {
+            return "--x";
+        }
+        String lowerM = m.toLowerCase();
+        String lowerA = a.toLowerCase();
+        if (lowerM.contains("response") || lowerM.contains("result")
+                || lowerA.contains("success") || lowerA.contains("failed")) {
+            return "-->>";
+        }
+        return "->>";
     }
 
     private boolean isThinking(final ObservationEvent event) {

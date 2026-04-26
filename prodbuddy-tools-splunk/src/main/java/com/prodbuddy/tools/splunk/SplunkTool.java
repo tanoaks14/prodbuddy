@@ -1,27 +1,20 @@
 package com.prodbuddy.tools.splunk;
 
+import com.prodbuddy.core.system.QueryService;
+import com.prodbuddy.core.tool.*;
+import com.prodbuddy.observation.SequenceLogger;
+
 import java.io.IOException;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Set;
-import java.util.HashMap;
 import java.util.regex.Pattern;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
-
-import com.prodbuddy.core.system.QueryService;
-import com.prodbuddy.core.tool.Tool;
-import com.prodbuddy.core.tool.ToolContext;
-import com.prodbuddy.core.tool.ToolMetadata;
-import com.prodbuddy.core.tool.ToolRequest;
-import com.prodbuddy.core.tool.ToolResponse;
-import com.prodbuddy.core.tool.ToolStyling;
-import com.prodbuddy.observation.SequenceLogger;
-import com.prodbuddy.observation.Slf4jSequenceLogger;
 
 /** Splunk search tool implementation. */
 public final class SplunkTool implements Tool {
@@ -80,7 +73,7 @@ public final class SplunkTool implements Tool {
 
     @Override
     public ToolStyling styling() {
-        return new ToolStyling("#FFCCBC", "#4E342E", "#FBE9E7");
+        return new ToolStyling("#FFCCBC", "#4E342E", "#FBE9E7", "🔍 Splunk", java.util.Map.of());
     }
 
     @Override
@@ -156,8 +149,8 @@ public final class SplunkTool implements Tool {
         String method = resolveMethod(op, request.payload());
 
         try {
-            seqLog.logSequence("agent", "splunk", op, "Executing Splunk Search", 
-                Map.of("type", "note", "noteText", "Search: " + search));
+            seqLog.logSequence("AgentLoopOrchestrator", "Splunk", op, "Executing Splunk Search", 
+                Map.of("type", "note", "styledActor", "Splunk", "noteText", "Search: " + search));
             HttpRequest httpRequest = buildRequest(baseUrl, path, body, auth,
                     mode, method, request.payload());
             return send(httpRequest, op, search, path, mode, request, context);
@@ -213,15 +206,15 @@ public final class SplunkTool implements Tool {
             final ToolContext context) {
         String attempted = "op=" + op + ", path=" + path + ", search=" + search;
         try {
-            Map<String, String> qMeta = new java.util.HashMap<>(styling().toMetadata());
+            Map<String, String> qMeta = new java.util.HashMap<>(styling().toMetadata("Splunk"));
             qMeta.put("style", "query"); qMeta.put("noteText", "Search: " + search);
-            seqLog.logSequence("splunk", "SplunkAPI", "CALL", op + " " + path, qMeta);
+            seqLog.logSequence("Splunk", "SplunkAPI", "CALL", op + " " + path, qMeta);
             HttpResponse<String> response = client.send(request,
                     HttpResponse.BodyHandlers.ofString());
             int status = response.statusCode();
-            Map<String, String> rMeta = new java.util.HashMap<>(styling().toMetadata());
+            Map<String, String> rMeta = new java.util.HashMap<>(styling().toMetadata("Splunk"));
             rMeta.put("style", status >= 400 ? "error" : "success");
-            seqLog.logSequence("SplunkAPI", "splunk", "RESPONSE", "HTTP " + status, rMeta);
+            seqLog.logSequence("SplunkAPI", "Splunk", "RESPONSE", "HTTP " + status, rMeta);
             String body = response.body();
             if (response.statusCode() >= HTTP_BAD_REQUEST
                     || body.contains("\"type\":\"ERROR\"")

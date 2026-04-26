@@ -1,13 +1,10 @@
 package com.prodbuddy.recipes;
 
 import com.prodbuddy.core.tool.ToolContext;
-import com.prodbuddy.core.tool.ToolRegistry;
-import com.prodbuddy.core.tool.ToolRequest;
 import com.prodbuddy.core.tool.ToolResponse;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Path;
-import java.util.HashMap;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;

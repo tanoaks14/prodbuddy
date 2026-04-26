@@ -1,20 +1,13 @@
 package com.prodbuddy.core.system;
 
+import com.prodbuddy.core.tool.*;
+import com.prodbuddy.observation.SequenceLogger;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
 import java.util.Set;
 import java.util.function.Supplier;
-
-import com.prodbuddy.core.tool.Tool;
-import com.prodbuddy.core.tool.ToolContext;
-import com.prodbuddy.core.tool.ToolMetadata;
-import com.prodbuddy.core.tool.ToolRegistry;
-import com.prodbuddy.core.tool.ToolRequest;
-import com.prodbuddy.core.tool.ToolResponse;
-import com.prodbuddy.core.tool.ToolRouter;
-import com.prodbuddy.observation.SequenceLogger;
-import com.prodbuddy.observation.Slf4jSequenceLogger;
 
 public final class SystemCatalogTool implements Tool {
 
@@ -26,7 +19,12 @@ public final class SystemCatalogTool implements Tool {
     public SystemCatalogTool(Supplier<ToolRegistry> registrySupplier, ToolRouter router) {
         this.registrySupplier = registrySupplier;
         this.router = router;
-        this.seqLog = new Slf4jSequenceLogger(SystemCatalogTool.class);
+        this.seqLog = com.prodbuddy.observation.ObservationContext.getLogger();
+    }
+
+    @Override
+    public com.prodbuddy.core.tool.ToolStyling styling() {
+        return new com.prodbuddy.core.tool.ToolStyling("#ECEFF1", "#263238", "#CFD8DC", "⚙️ System", java.util.Map.of());
     }
 
     @Override
@@ -46,7 +44,8 @@ public final class SystemCatalogTool implements Tool {
 
     @Override
     public ToolResponse execute(ToolRequest request, ToolContext context) {
-        seqLog.logSequence("AgentLoopOrchestrator", "system", "execute", "System " + request.operation());
+        seqLog.logSequence("AgentLoopOrchestrator", "System", "execute", "System " + request.operation(),
+                styling().toMetadata("System"));
         return switch (request.operation().toLowerCase()) {
             case "list_tools" ->
                 listTools();

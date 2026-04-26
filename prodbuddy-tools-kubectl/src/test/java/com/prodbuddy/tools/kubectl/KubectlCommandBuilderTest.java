@@ -1,10 +1,10 @@
 package com.prodbuddy.tools.kubectl;
 
-import java.util.List;
-import java.util.Map;
-
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+
+import java.util.List;
+import java.util.Map;
 
 class KubectlCommandBuilderTest {
 

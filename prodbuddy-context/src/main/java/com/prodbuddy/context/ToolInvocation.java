@@ -1,10 +1,10 @@
 package com.prodbuddy.context;
 
-import java.time.Instant;
-import java.util.Map;
-
 import com.prodbuddy.core.tool.ToolRequest;
 import com.prodbuddy.core.tool.ToolResponse;
+
+import java.time.Instant;
+import java.util.Map;
 
 /**
  * Immutable record of a single tool invocation — the full request,

@@ -1,5 +1,6 @@
 package com.prodbuddy.observation;
 
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -38,5 +39,19 @@ public final class ObservationContext {
     public static void log(final String sender, final String receiver,
                            final String method, final String action) {
         LOGGER.get().logSequence(sender, receiver, method, action);
+    }
+
+    /**
+     * Convenience method for logging with metadata.
+     * @param sender source
+     * @param receiver destination
+     * @param method method
+     * @param action action
+     * @param meta metadata
+     */
+    public static void log(final String sender, final String receiver,
+                           final String method, final String action,
+                           final Map<String, String> meta) {
+        LOGGER.get().logSequence(sender, receiver, method, action, meta);
     }
 }

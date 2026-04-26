@@ -1,13 +1,12 @@
 package com.prodbuddy.app;
 
-import java.util.Map;
-
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Test;
-
 import com.prodbuddy.core.tool.ToolContext;
 import com.prodbuddy.core.tool.ToolRequest;
 import com.prodbuddy.core.tool.ToolResponse;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
+
+import java.util.Map;
 
 class DebugIssueAgentLoopTest {
 

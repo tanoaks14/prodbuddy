@@ -1,17 +1,18 @@
 package com.prodbuddy.tools.interactive;
 
+import com.prodbuddy.core.tool.*;
+import com.prodbuddy.observation.ObservationContext;
+
 import java.util.Map;
 import java.util.Scanner;
 import java.util.Set;
 
-import com.prodbuddy.core.tool.Tool;
-import com.prodbuddy.core.tool.ToolContext;
-import com.prodbuddy.core.tool.ToolMetadata;
-import com.prodbuddy.core.tool.ToolRequest;
-import com.prodbuddy.core.tool.ToolResponse;
-import com.prodbuddy.observation.ObservationContext;
-
 public final class AskTool implements Tool {
+    
+    @Override
+    public com.prodbuddy.core.tool.ToolStyling styling() {
+        return new com.prodbuddy.core.tool.ToolStyling("#E3F2FD", "#0D47A1", "#BBDEFB", "💬 Interactive", java.util.Map.of());
+    }
 
     @Override
     public ToolMetadata metadata() {
@@ -44,7 +45,8 @@ public final class AskTool implements Tool {
         Scanner scanner = new Scanner(System.in);
         if (scanner.hasNextLine()) {
             String response = scanner.nextLine();
-            ObservationContext.log("User", "Interactive", "answer", response);
+            ObservationContext.log("User", "Interactive", "answer", response,
+                    styling().toMetadata("Interactive"));
             return ToolResponse.ok(Map.of("answer", response,
                     "status", "answered"));
         }
@@ -53,11 +55,9 @@ public final class AskTool implements Tool {
 
     private ToolResponse handleSelect(final ToolRequest request) {
         String data = String.valueOf(request.payload().getOrDefault("data", "[]"));
-        String prompt = String.valueOf(request.payload().getOrDefault("prompt",
-                "Please select an option:"));
+        String prompt = String.valueOf(request.payload().getOrDefault("prompt", "Please select an option:"));
         try {
-            com.fasterxml.jackson.databind.ObjectMapper mapper =
-                new com.fasterxml.jackson.databind.ObjectMapper();
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
             com.fasterxml.jackson.databind.JsonNode node = mapper.readTree(data);
             if (!node.isArray()) {
                 return ToolResponse.failure("SELECT_BAD_DATA", "Data must be a JSON array");
@@ -71,9 +71,9 @@ public final class AskTool implements Tool {
             if (scanner.hasNextInt()) {
                 int choice = scanner.nextInt();
                 if (choice >= 1 && choice <= node.size()) {
-                    com.fasterxml.jackson.databind.JsonNode selected = node.get(choice - 1);
-                    ObservationContext.log("User", "Interactive", "select", selected.toString());
-                    return ToolResponse.ok(mapper.convertValue(selected, Map.class));
+                    com.fasterxml.jackson.databind.JsonNode sld = node.get(choice - 1);
+                    ObservationContext.log("User", "Interactive", "select", sld.toString(), styling().toMetadata("Interactive"));
+                    return ToolResponse.ok(mapper.convertValue(sld, Map.class));
                 }
             }
             return ToolResponse.failure("INVALID_CHOICE", "Selection out of range or invalid.");

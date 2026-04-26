@@ -1,8 +1,8 @@
 package com.prodbuddy.tools.elasticsearch;
 
-import java.util.Map;
-
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+import java.util.Map;
 
 public final class ElasticsearchQueryBuilder {
 

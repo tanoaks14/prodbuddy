@@ -3,7 +3,6 @@ package com.prodbuddy.tools.codecontext;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /** Reads ClassMetrics from H2 and produces a sorted complexity heatmap report. */
 public final class ComplexityAnalyzer {

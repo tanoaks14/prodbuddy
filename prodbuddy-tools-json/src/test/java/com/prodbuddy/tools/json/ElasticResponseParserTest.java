@@ -1,9 +1,10 @@
 package com.prodbuddy.tools.json;
 
 import org.junit.jupiter.api.Test;
-import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.Map;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class ElasticResponseParserTest {
 

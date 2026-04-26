@@ -1,13 +1,14 @@
 package com.prodbuddy.tools.newrelic;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.prodbuddy.core.tool.ToolContext;
 import com.prodbuddy.core.tool.ToolResponse;
 import com.prodbuddy.observation.SequenceLogger;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 public final class DashboardDataService {
     private final NrqlGraphQLClient client;

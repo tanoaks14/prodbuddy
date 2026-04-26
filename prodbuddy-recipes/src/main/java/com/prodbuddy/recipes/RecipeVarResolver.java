@@ -1,14 +1,13 @@
 package com.prodbuddy.recipes;
 
+import com.prodbuddy.core.tool.ToolContext;
+import com.prodbuddy.core.tool.ToolResponse;
+
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import com.prodbuddy.core.tool.ToolContext;
-import com.prodbuddy.core.tool.ToolResponse;
-import com.prodbuddy.recipes.RecipeStepSummarizer;
 
 /**
  * Resolves ${PLACEHOLDER} syntax in recipe parameter values.

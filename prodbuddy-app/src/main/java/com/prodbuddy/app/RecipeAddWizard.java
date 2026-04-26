@@ -1,5 +1,7 @@
 package com.prodbuddy.app;
 
+import com.prodbuddy.recipes.RecipeStep;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -7,8 +9,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-
-import com.prodbuddy.recipes.RecipeStep;
 
 /**
  * Interactive wizard that guides the user through creating a recipe .md file.

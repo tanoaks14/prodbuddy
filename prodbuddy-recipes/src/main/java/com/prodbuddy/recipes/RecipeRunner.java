@@ -1,15 +1,14 @@
 package com.prodbuddy.recipes;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-
 import com.prodbuddy.core.tool.ToolContext;
 import com.prodbuddy.core.tool.ToolRequest;
 import com.prodbuddy.core.tool.ToolResponse;
 import com.prodbuddy.observation.SequenceLogger;
-import com.prodbuddy.observation.Slf4jSequenceLogger;
+
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Executes a recipe step-by-step, resolving variables before each step and
@@ -33,11 +32,11 @@ public final class RecipeRunner {
     ) {
         this.registry = RecipeRegistry.loadFrom(java.nio.file.Path.of(
                 context.envOrDefault("RECIPES_DIR", "recipes")));
-        seqLog.logSequence("RecipeCliHandler", "RecipeRunner", "run", "Running recipe: " + recipe.name());
+        seqLog.logSequence("RecipeCliHandler", "RecipeRunner", "run", "🚀 Running recipe: " + recipe.name());
         Map<String, ToolResponse> stepData = new LinkedHashMap<>();
         List<RecipeStepResult> results = new ArrayList<>();
         for (RecipeStep step : recipe.steps()) {
-            seqLog.logSequence("RecipeRunner", "Orchestrator", "runStep", "Step: " + step.name());
+            seqLog.logSequence("RecipeRunner", "Orchestrator", "runStep", "⚡ Step: " + step.name());
 
             if (!step.foreach().isEmpty()) {
                 boolean cont = executeLoop(step, fullRecipeContent, context, executor, stepData, results);
@@ -46,16 +45,16 @@ public final class RecipeRunner {
             }
 
             if (!shouldRun(step, context, stepData, Map.of())) {
-                seqLog.logSequence("RecipeRunner", "Orchestrator", "skipStep", "Skipping step " + step.name() + " due to condition");
+                seqLog.logSequence("RecipeRunner", "Orchestrator", "skipStep", "⏭️ Skipping step " + step.name());
                 continue;
             }
 
             RecipeStepResult result = runStep(step, context, executor, stepData, Map.of(), fullRecipeContent);
             results.add(result);
-            seqLog.logSequence("Orchestrator", "RecipeRunner", "runStep", "Result: " + result.response().success());
+            seqLog.logSequence("Orchestrator", "RecipeRunner", "runStep", "✅ Result: " + result.response().success());
             stepData.put(step.name(), result.response());
         }
-        seqLog.logSequence("RecipeRunner", "RecipeCliHandler", "run", "Recipe complete: " + results.size() + " steps");
+        seqLog.logSequence("RecipeRunner", "RecipeCliHandler", "run", "🏁 Recipe complete");
         return new RecipeRunResult(recipe.name(), results);
     }
 

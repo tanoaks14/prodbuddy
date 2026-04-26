@@ -1,17 +1,13 @@
 package com.prodbuddy.tools.datetime;
 
+import com.prodbuddy.core.tool.*;
+import com.prodbuddy.observation.ObservationContext;
+
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
 import java.util.Set;
-
-import com.prodbuddy.core.tool.Tool;
-import com.prodbuddy.core.tool.ToolContext;
-import com.prodbuddy.core.tool.ToolMetadata;
-import com.prodbuddy.core.tool.ToolRequest;
-import com.prodbuddy.core.tool.ToolResponse;
-import com.prodbuddy.observation.ObservationContext;
 
 public final class TimeConverterTool implements Tool {
 
@@ -31,10 +27,16 @@ public final class TimeConverterTool implements Tool {
     }
 
     @Override
+    public com.prodbuddy.core.tool.ToolStyling styling() {
+        return new com.prodbuddy.core.tool.ToolStyling("#E8F5E9", "#1B5E20", "#C8E6C9", "🕒 DateTime", java.util.Map.of());
+    }
+
+    @Override
     public ToolResponse execute(final ToolRequest request,
                                 final ToolContext context) {
         String op = request.operation();
-        ObservationContext.log("Orchestrator", "DateTime", op, "requested");
+        ObservationContext.log("Orchestrator", "DateTime", op, "requested", 
+                styling().toMetadata("DateTime"));
         if ("now".equals(op)) {
             return ToolResponse.ok(Map.of("value", Instant.now().toString(),
                     "status", "now"));

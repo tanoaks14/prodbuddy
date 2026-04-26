@@ -2,6 +2,7 @@ package com.prodbuddy.tools.json;
 
 import com.prodbuddy.core.tool.Tool;
 import com.prodbuddy.core.tool.ToolProvider;
+
 import java.util.Collection;
 import java.util.List;
 

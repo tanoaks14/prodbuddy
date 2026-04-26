@@ -1,14 +1,5 @@
 package com.prodbuddy.tools.agent;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
 import com.prodbuddy.core.agent.AgentConfig;
 import com.prodbuddy.core.agent.OllamaAgentClient;
 import com.prodbuddy.core.tool.ToolContext;
@@ -16,6 +7,10 @@ import com.prodbuddy.core.tool.ToolResponse;
 import com.prodbuddy.recipes.RecipeDefinition;
 import com.prodbuddy.recipes.RecipeLoader;
 import com.prodbuddy.recipes.RecipeStep;
+
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public final class RecipeAgentHelper {
 

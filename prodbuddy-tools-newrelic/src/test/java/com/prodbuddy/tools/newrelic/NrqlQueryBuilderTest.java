@@ -1,9 +1,9 @@
 package com.prodbuddy.tools.newrelic;
 
-import java.util.Map;
-
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+
+import java.util.Map;
 
 class NrqlQueryBuilderTest {
 

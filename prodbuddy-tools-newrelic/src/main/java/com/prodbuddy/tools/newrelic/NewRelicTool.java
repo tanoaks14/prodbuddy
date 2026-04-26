@@ -1,17 +1,12 @@
 package com.prodbuddy.tools.newrelic;
 
-import java.util.Map;
-import java.util.Set;
-
 import com.prodbuddy.core.system.QueryService;
-import com.prodbuddy.core.tool.Tool;
-import com.prodbuddy.core.tool.ToolContext;
-import com.prodbuddy.core.tool.ToolMetadata;
-import com.prodbuddy.core.tool.ToolRequest;
-import com.prodbuddy.core.tool.ToolResponse;
-import com.prodbuddy.core.tool.ToolStyling;
+import com.prodbuddy.core.tool.*;
 import com.prodbuddy.observation.SequenceLogger;
 import com.prodbuddy.observation.Slf4jSequenceLogger;
+
+import java.util.Map;
+import java.util.Set;
 
 public final class NewRelicTool implements Tool {
 
@@ -74,16 +69,16 @@ public final class NewRelicTool implements Tool {
 
     @Override
     public ToolStyling styling() {
-        return new ToolStyling("#B2DFDB", "#004D40", "#E0F2F1");
+        return new ToolStyling("#B2DFDB", "#004D40", "#E0F2F1", "☁️ New Relic", java.util.Map.of());
     }
 
     @Override
     public ToolResponse execute(ToolRequest request, ToolContext context) {
-        seqLog.logSequence("AgentLoopOrchestrator", "newrelic", "execute", "Executing NewRelic " + request.operation());
+        seqLog.logSequence("AgentLoopOrchestrator", "NewRelic", "execute", "Executing NewRelic " + request.operation(), styling().toMetadata("NewRelic"));
         try {
             return dispatch(request, context);
         } catch (Exception ex) {
-            seqLog.logSequence("newrelic", "AgentLoopOrchestrator", "execute", "Failed: " + ex.getMessage());
+            seqLog.logSequence("NewRelic", "AgentLoopOrchestrator", "execute", "Failed: " + ex.getMessage(), styling().toMetadata("NewRelic"));
             return ToolResponse.failure("NEWRELIC_SAFE_CATCH", "Unexpected error in New Relic tool: " + ex.getMessage());
         }
     }
@@ -146,7 +141,7 @@ public final class NewRelicTool implements Tool {
     }
 
     private ToolResponse listScenarios() {
-        seqLog.logSequence("newrelic", "AgentLoopOrchestrator", "execute", "Listing scenarios");
+        seqLog.logSequence("NewRelic", "AgentLoopOrchestrator", "execute", "Listing scenarios", styling().toMetadata("NewRelic"));
         return ToolResponse.ok(Map.of("scenarios", catalog.supported(), "preferredOperation", "query_metrics"));
     }
 

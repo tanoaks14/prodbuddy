@@ -46,7 +46,7 @@ public final class AgentTool implements Tool {
 
     @Override
     public ToolStyling styling() {
-        return new ToolStyling("#D1C4E9", "#4A148C", "#F3E5F5");
+        return new ToolStyling("#D1C4E9", "#4A148C", "#F3E5F5", "🤖 Agent", java.util.Map.of());
     }
 
     @Override
@@ -80,7 +80,7 @@ public final class AgentTool implements Tool {
             allowedTools = (java.util.List<String>) toolsObj;
         }
 
-        AgentLoopManager manager = new AgentLoopManager(client, config);
+        AgentLoopManager manager = new AgentLoopManager(client, config, seqLog);
         return manager.run(prompt, allowedTools, context);
     }
 
@@ -148,11 +148,11 @@ public final class AgentTool implements Tool {
         java.util.List<String> images = extractImages(request.payload());
         try {
             String opinion = client.generate(prompt, images, config);
-            Map<String, String> meta = new java.util.HashMap<>(styling().toMetadata());
+            Map<String, String> meta = new java.util.HashMap<>(styling().toMetadata("Agent"));
             meta.put("style", "thinking");
             meta.put("noteText", "Agent Opinion:\n" + opinion);
             
-            seqLog.logSequence("agent", "AgentLoopOrchestrator", "think", "Opinion", meta);
+            seqLog.logSequence("Agent", "AgentLoopOrchestrator", "think", "Opinion", meta);
             return ToolResponse.ok(Map.of("opinion", opinion,
                      "status", "analyzed"));
         } catch (Exception e) {

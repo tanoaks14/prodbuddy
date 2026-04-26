@@ -1,15 +1,15 @@
 package com.prodbuddy.tools.newrelic;
 
+import com.prodbuddy.core.tool.ToolContext;
+import com.prodbuddy.core.tool.ToolResponse;
+import com.prodbuddy.observation.SequenceLogger;
+
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.Map;
-
-import com.prodbuddy.core.tool.ToolContext;
-import com.prodbuddy.core.tool.ToolResponse;
-import com.prodbuddy.observation.SequenceLogger;
 
 /**
  * Client for interacting with New Relic NerdGraph API.
@@ -74,8 +74,8 @@ public final class NrqlGraphQLClient {
 
         boolean debug = "true".equalsIgnoreCase(context.envOrDefault("DEBUG", "false"));
         if (debug) {
-            seqLog.logSequence("newrelic", "NerdGraph", "query", "Executing GraphQL Query", 
-                Map.of("type", "note", "noteText", "GQL: " + graphqlBody));
+            seqLog.logSequence("NewRelic", "NerdGraph", "query", "Executing GraphQL Query", 
+                Map.of("type", "note", "styledActor", "NewRelic", "noteText", "GQL: " + graphqlBody));
         }
 
         String region = context.envOrDefault("NEWRELIC_REGION", "US")
@@ -110,23 +110,18 @@ public final class NrqlGraphQLClient {
                               final String query,
                               final boolean debug) {
         try {
-            Map<String, String> qMeta = new java.util.HashMap<>(styling.toMetadata());
-            qMeta.put("style", "query");
-            qMeta.put("noteText", "NRQL/GQL Query:\n" + query);
-            
-            seqLog.logSequence("newrelic", "NerdGraph", "POST", "Executing GraphQL", qMeta);
+            seqLog.logSequence("NewRelic", "NerdGraph", "POST", "Executing GraphQL", 
+                    styling.toMetadata("NewRelic"));
             
             HttpResponse<String> response = client.send(request,
                 HttpResponse.BodyHandlers.ofString());
             
             int status = response.statusCode();
-            Map<String, String> rMeta = new java.util.HashMap<>(styling.toMetadata());
-            rMeta.put("style", status >= 400 ? "error" : "success");
-            
-            seqLog.logSequence("NerdGraph", "newrelic", "RESPONSE", "HTTP " + status, rMeta);
+            Map<String, String> rMeta = styling.toMetadata("NewRelic");
+            seqLog.logSequence("NerdGraph", "NewRelic", "RESPONSE", "HTTP " + status, rMeta);
 
             if (debug) {
-                seqLog.logSequence("newrelic", "Agent", "debug", 
+                seqLog.logSequence("NewRelic", "Agent", "debug", 
                         "Body: " + response.body());
             }
 

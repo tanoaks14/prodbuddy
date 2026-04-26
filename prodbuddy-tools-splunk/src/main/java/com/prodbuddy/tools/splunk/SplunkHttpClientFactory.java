@@ -1,13 +1,13 @@
 package com.prodbuddy.tools.splunk;
 
-import java.net.http.HttpClient;
-import java.security.SecureRandom;
-import java.time.Duration;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLParameters;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
-import javax.net.ssl.SSLParameters;
+import java.net.http.HttpClient;
+import java.security.SecureRandom;
 import java.security.cert.X509Certificate;
+import java.time.Duration;
 
 /** Factory for Splunk HTTP clients. */
 public final class SplunkHttpClientFactory {

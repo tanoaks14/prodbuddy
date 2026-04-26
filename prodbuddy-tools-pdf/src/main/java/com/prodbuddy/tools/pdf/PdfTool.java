@@ -1,14 +1,9 @@
 package com.prodbuddy.tools.pdf;
 
+import com.prodbuddy.core.tool.*;
+
 import java.nio.file.Path;
 import java.util.Set;
-
-import com.prodbuddy.core.tool.Tool;
-import com.prodbuddy.core.tool.ToolContext;
-import com.prodbuddy.core.tool.ToolExecutionException;
-import com.prodbuddy.core.tool.ToolMetadata;
-import com.prodbuddy.core.tool.ToolRequest;
-import com.prodbuddy.core.tool.ToolResponse;
 
 public final class PdfTool implements Tool {
 
@@ -18,7 +13,12 @@ public final class PdfTool implements Tool {
 
     public PdfTool(OpenDataLoaderPdfAdapter adapter) {
         this.adapter = adapter;
-        this.seqLog = new com.prodbuddy.observation.Slf4jSequenceLogger(PdfTool.class);
+        this.seqLog = com.prodbuddy.observation.ObservationContext.getLogger();
+    }
+
+    @Override
+    public com.prodbuddy.core.tool.ToolStyling styling() {
+        return new com.prodbuddy.core.tool.ToolStyling("#FFEBEE", "#B71C1C", "#FFCDD2", "📑 PDF", java.util.Map.of());
     }
 
     @Override
@@ -33,7 +33,8 @@ public final class PdfTool implements Tool {
 
     @Override
     public ToolResponse execute(ToolRequest request, ToolContext context) throws ToolExecutionException {
-        seqLog.logSequence("AgentLoopOrchestrator", "PdfTool", "execute", "Processing PDF operation");
+        seqLog.logSequence("AgentLoopOrchestrator", NAME, "execute", "Processing PDF operation", 
+                styling().toMetadata());
         String pathText = String.valueOf(request.payload().getOrDefault("path", ""));
         if (pathText.isBlank()) {
             return ToolResponse.failure("PDF_BAD_REQUEST", "path is required");
@@ -41,13 +42,15 @@ public final class PdfTool implements Tool {
 
         Path path = Path.of(pathText);
         if ("read".equalsIgnoreCase(request.operation())) {
-            seqLog.logSequence("PdfTool", "OpenDataLoaderPdfAdapter", "extract", "Delegating read to adapter");
+            seqLog.logSequence(NAME, "OpenDataLoaderPdfAdapter", "extract", "Delegating read to adapter",
+                    styling().toMetadata());
             return ToolResponse.ok(adapter.extract(path));
         }
 
         if ("create".equalsIgnoreCase(request.operation())) {
             String content = String.valueOf(request.payload().getOrDefault("content", ""));
-            seqLog.logSequence("PdfTool", "OpenDataLoaderPdfAdapter", "create", "Delegating create to adapter");
+            seqLog.logSequence(NAME, "OpenDataLoaderPdfAdapter", "create", "Delegating create to adapter",
+                    styling().toMetadata());
             return ToolResponse.ok(adapter.create(path, content));
         }
 

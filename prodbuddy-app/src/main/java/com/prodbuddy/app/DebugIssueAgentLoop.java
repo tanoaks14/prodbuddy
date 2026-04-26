@@ -1,16 +1,16 @@
 package com.prodbuddy.app;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-
 import com.prodbuddy.core.tool.ToolContext;
 import com.prodbuddy.core.tool.ToolError;
 import com.prodbuddy.core.tool.ToolRequest;
 import com.prodbuddy.core.tool.ToolResponse;
 import com.prodbuddy.observation.SequenceLogger;
 import com.prodbuddy.observation.Slf4jSequenceLogger;
+
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 public final class DebugIssueAgentLoop {
 

@@ -1,8 +1,5 @@
 package com.prodbuddy.tools.agent;
 
-import java.util.Map;
-import java.util.Optional;
-
 import com.prodbuddy.core.agent.AgentConfig;
 import com.prodbuddy.core.agent.OllamaAgentClient;
 import com.prodbuddy.core.tool.Tool;
@@ -10,18 +7,24 @@ import com.prodbuddy.core.tool.ToolContext;
 import com.prodbuddy.core.tool.ToolRequest;
 import com.prodbuddy.core.tool.ToolResponse;
 
+import java.util.Map;
+import java.util.Optional;
+
 public final class AgentLoopManager {
 
     private final OllamaAgentClient client;
     private final AgentConfig config;
+    private final com.prodbuddy.observation.SequenceLogger seqLog;
     private final com.fasterxml.jackson.databind.ObjectMapper mapper =
             new com.fasterxml.jackson.databind.ObjectMapper();
     private java.util.List<String> allowedTools;
 
     public AgentLoopManager(final OllamaAgentClient client,
-                            final AgentConfig config) {
+                            final AgentConfig config,
+                            final com.prodbuddy.observation.SequenceLogger seqLog) {
         this.client = client;
         this.config = config;
+        this.seqLog = seqLog;
     }
 
     public ToolResponse run(final String prompt,
@@ -29,6 +32,7 @@ public final class AgentLoopManager {
                             final ToolContext context) {
         this.allowedTools = allowedTools != null ? allowedTools
                 : java.util.List.of("git", "json", "datetime", "interactive");
+        seqLog.logSequence("Agent", "AgentLoopOrchestrator", "run", "Started Orchestration");
         AgentLoopState state = new AgentLoopState(prompt);
 
         try {
@@ -102,6 +106,7 @@ public final class AgentLoopManager {
 
         String json = client.generate(p, config);
         json = cleanJson(json);
+        seqLog.logSequence("Agent", "AgentLoopOrchestrator", "decide", "Next action decided");
 
         Map<String, Object> decision = mapper.readValue(json, Map.class);
         if (Boolean.TRUE.equals(decision.get("finished"))) {
@@ -141,6 +146,8 @@ public final class AgentLoopManager {
     private String callTool(final String name, final String op,
                             final Map<String, Object> params,
                             final ToolContext ctx) throws Exception {
+        String displayName = name.substring(0, 1).toUpperCase() + name.substring(1);
+        seqLog.logSequence("AgentLoopOrchestrator", displayName, op, "Executing tool");
         Optional<Tool> tool = ctx.registry().find(name);
         if (tool.isPresent()) {
             ToolResponse resp = tool.get().execute(

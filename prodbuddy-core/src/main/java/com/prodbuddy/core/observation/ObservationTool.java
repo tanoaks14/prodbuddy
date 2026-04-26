@@ -1,15 +1,11 @@
 package com.prodbuddy.core.observation;
 
+import com.prodbuddy.core.tool.*;
+import com.prodbuddy.observation.LocalDiagramRenderer;
+import com.prodbuddy.observation.RecordingSequenceLogger;
+
 import java.util.Map;
 import java.util.Set;
-
-import com.prodbuddy.core.tool.Tool;
-import com.prodbuddy.core.tool.ToolContext;
-import com.prodbuddy.core.tool.ToolMetadata;
-import com.prodbuddy.core.tool.ToolRequest;
-import com.prodbuddy.core.tool.ToolResponse;
-import com.prodbuddy.observation.RecordingSequenceLogger;
-import com.prodbuddy.observation.LocalDiagramRenderer;
 
 /**
  * Tool for interacting with the observation system.
@@ -21,6 +17,11 @@ public final class ObservationTool implements Tool {
 
     public ObservationTool(RecordingSequenceLogger logger) {
         this.logger = logger;
+    }
+
+    @Override
+    public com.prodbuddy.core.tool.ToolStyling styling() {
+        return new com.prodbuddy.core.tool.ToolStyling("#F5F5F5", "#616161", "#EEEEEE", "📊 Observation", java.util.Map.of());
     }
 
     @Override

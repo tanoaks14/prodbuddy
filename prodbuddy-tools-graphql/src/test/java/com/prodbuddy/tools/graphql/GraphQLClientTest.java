@@ -2,14 +2,14 @@ package com.prodbuddy.tools.graphql;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import java.net.http.HttpRequest;
+
 import java.net.URI;
-import java.util.Map;
-import java.util.Base64;
+import java.net.http.HttpRequest;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class GraphQLClientTest {
 

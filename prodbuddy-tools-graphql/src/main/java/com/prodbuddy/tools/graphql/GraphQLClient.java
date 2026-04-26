@@ -1,14 +1,15 @@
 package com.prodbuddy.tools.graphql;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Base64;
 import java.util.Map;
-import java.nio.charset.StandardCharsets;
 
 /** Client for executing GraphQL queries. */
 public final class GraphQLClient {

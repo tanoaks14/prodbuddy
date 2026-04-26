@@ -1,6 +1,7 @@
 package com.prodbuddy.tools.graphql;
 
 import com.prodbuddy.core.system.QueryService;
+
 import java.util.Map;
 
 /** Utility for building GraphQL introspection queries. */

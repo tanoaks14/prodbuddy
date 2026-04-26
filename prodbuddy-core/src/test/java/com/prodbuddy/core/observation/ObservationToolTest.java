@@ -1,9 +1,9 @@
 package com.prodbuddy.core.observation;
 
 import com.prodbuddy.core.tool.ToolContext;
+import com.prodbuddy.core.tool.ToolRegistry;
 import com.prodbuddy.core.tool.ToolRequest;
 import com.prodbuddy.core.tool.ToolResponse;
-import com.prodbuddy.core.tool.ToolRegistry;
 import com.prodbuddy.observation.RecordingSequenceLogger;
 import com.prodbuddy.observation.Slf4jSequenceLogger;
 import org.junit.jupiter.api.Test;
@@ -11,7 +11,8 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ObservationToolTest {
 
@@ -38,12 +39,14 @@ class ObservationToolTest {
         System.out.println("Generated Mermaid:\n" + mermaid);
         
         assertTrue(mermaid.contains("sequenceDiagram"));
-        // Check for participant declarations
-        assertTrue(mermaid.contains("participant actor_User as \"User\""));
+        // Check for participant declarations (with styling from ToolRegistry)
+        assertTrue(mermaid.contains("participant actor_User as \"👤 User\" #FFF9C4"));
         assertTrue(mermaid.contains("participant actor_Interactive as \"Interactive\""));
+        assertTrue(mermaid.contains("participant actor_Observation as \"📊 Observation\" #F5F5F5"));
         
         // Check for arrows using safe IDs
         assertTrue(mermaid.contains("actor_User->>actor_Interactive: ask (Ready?)"));
+        assertTrue(mermaid.contains("actor_NewRelic->>actor_Observation: mermaid (Generate)"));
     }
 
     @Test

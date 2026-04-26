@@ -1,6 +1,5 @@
 package com.prodbuddy.tools.codecontext;
 
-import com.prodbuddy.core.tool.ToolContext;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;

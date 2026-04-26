@@ -1,11 +1,11 @@
 package com.prodbuddy.context;
 
-import java.time.Instant;
-
 import com.prodbuddy.core.tool.ToolContext;
 import com.prodbuddy.core.tool.ToolRequest;
 import com.prodbuddy.core.tool.ToolResponse;
 import com.prodbuddy.recipes.RecipeToolExecutor;
+
+import java.time.Instant;
 
 /**
  * A transparent {@link RecipeToolExecutor} decorator that records every

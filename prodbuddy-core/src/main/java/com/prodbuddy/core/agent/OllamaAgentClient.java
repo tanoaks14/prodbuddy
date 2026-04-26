@@ -1,14 +1,14 @@
 package com.prodbuddy.core.agent;
 
+import com.prodbuddy.observation.SequenceLogger;
+import com.prodbuddy.observation.Slf4jSequenceLogger;
+
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
-
-import com.prodbuddy.observation.SequenceLogger;
-import com.prodbuddy.observation.Slf4jSequenceLogger;
 
 public final class OllamaAgentClient {
 

@@ -1,8 +1,8 @@
 package com.prodbuddy.core.system;
 
-import java.util.Set;
-
 import com.prodbuddy.core.tool.ToolMetadata;
+
+import java.util.Set;
 
 public record ToolInfo(String name, String description, Set<String> capabilities) {
 

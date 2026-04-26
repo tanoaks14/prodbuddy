@@ -1,14 +1,8 @@
 package com.prodbuddy.tools.codecontext;
 
-import com.prodbuddy.core.tool.Tool;
-import com.prodbuddy.core.tool.ToolContext;
-import com.prodbuddy.core.tool.ToolMetadata;
-import com.prodbuddy.core.tool.ToolRequest;
-import com.prodbuddy.core.tool.ToolResponse;
+import com.prodbuddy.core.tool.*;
 import com.prodbuddy.observation.SequenceLogger;
-import com.prodbuddy.observation.Slf4jSequenceLogger;
 
-import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -71,7 +65,12 @@ public final class JavaCodeContextTool implements Tool {
         this.callChainService = callChainService;
         this.recommendationService = recommendationService;
         this.analysisService = analysisService;
-        this.seqLog = new Slf4jSequenceLogger(JavaCodeContextTool.class);
+        this.seqLog = com.prodbuddy.observation.ObservationContext.getLogger();
+    }
+
+    @Override
+    public com.prodbuddy.core.tool.ToolStyling styling() {
+        return new com.prodbuddy.core.tool.ToolStyling("#FFECB3", "#FF6F00", "#FFF8E1", "💻 CodeContext", java.util.Map.of());
     }
 
     @Override
@@ -95,12 +94,14 @@ public final class JavaCodeContextTool implements Tool {
 
     @Override
     public ToolResponse execute(ToolRequest request, ToolContext context) {
-        seqLog.logSequence("AgentLoopOrchestrator", "codecontext", "execute", "CodeContext " + request.operation());
+        seqLog.logSequence("AgentLoopOrchestrator", "CodeContext", "execute", "CodeContext " + request.operation(),
+                styling().toMetadata("CodeContext"));
         Path projectPath = projectPath(request.payload());
         String operation = request.operation().toLowerCase();
         ToolResponse response = tryExecuteKnown(operation, projectPath, request.payload(), context);
         if (response != null) {
-            seqLog.logSequence("codecontext", "AgentLoopOrchestrator", "execute", "Completed " + operation);
+            seqLog.logSequence("CodeContext", "AgentLoopOrchestrator", "execute", "Completed " + operation,
+                    styling().toMetadata("CodeContext"));
             return response;
         }
         return ToolResponse.failure(

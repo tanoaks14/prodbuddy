@@ -1,19 +1,13 @@
 package com.prodbuddy.app;
 
-import com.prodbuddy.tools.splunk.SplunkTool;
-import com.prodbuddy.tools.agent.AgentTool;
-import com.prodbuddy.tools.json.JsonTool;
-import com.prodbuddy.tools.json.JsonAnalyzer;
-import com.prodbuddy.tools.git.GitTool;
+import com.prodbuddy.core.observation.ObservationTool;
 import com.prodbuddy.core.system.SystemCatalogTool;
 import com.prodbuddy.core.tool.Tool;
 import com.prodbuddy.core.tool.ToolRegistry;
+import com.prodbuddy.observation.RecordingSequenceLogger;
+import com.prodbuddy.observation.Slf4jSequenceLogger;
 import com.prodbuddy.orchestrator.RuleBasedToolRouter;
-import com.prodbuddy.tools.codecontext.JavaCodeContextTool;
-import com.prodbuddy.tools.codecontext.JavaCodeSearchService;
-import com.prodbuddy.tools.codecontext.JavaGraphExtractor;
-import com.prodbuddy.tools.codecontext.JavaProjectSummaryService;
-import com.prodbuddy.tools.codecontext.LocalGraphDbService;
+import com.prodbuddy.tools.codecontext.*;
 import com.prodbuddy.tools.elasticsearch.ElasticsearchQueryBuilder;
 import com.prodbuddy.tools.elasticsearch.ElasticsearchTool;
 import com.prodbuddy.tools.http.GenericApiTool;
@@ -25,10 +19,7 @@ import com.prodbuddy.tools.newrelic.NewRelicTool;
 import com.prodbuddy.tools.pdf.LocalOpenDataLoaderPdfAdapter;
 import com.prodbuddy.tools.pdf.PdfTool;
 import com.prodbuddy.tools.splunk.SplunkOperationGuard;
-import com.prodbuddy.observation.RecordingSequenceLogger;
-import com.prodbuddy.observation.Slf4jSequenceLogger;
-import com.prodbuddy.core.observation.ObservationTool;
-import com.prodbuddy.observation.SequenceLogger;
+import com.prodbuddy.tools.splunk.SplunkTool;
 
 import java.util.ArrayList;
 import java.util.List;

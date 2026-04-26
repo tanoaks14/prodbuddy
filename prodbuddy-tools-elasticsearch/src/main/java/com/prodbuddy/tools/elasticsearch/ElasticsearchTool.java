@@ -1,5 +1,8 @@
 package com.prodbuddy.tools.elasticsearch;
 
+import com.prodbuddy.core.tool.*;
+import com.prodbuddy.observation.SequenceLogger;
+
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -7,15 +10,6 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Set;
-
-import com.prodbuddy.core.tool.Tool;
-import com.prodbuddy.core.tool.ToolContext;
-import com.prodbuddy.core.tool.ToolMetadata;
-import com.prodbuddy.core.tool.ToolRequest;
-import com.prodbuddy.core.tool.ToolResponse;
-import com.prodbuddy.core.tool.ToolStyling;
-import com.prodbuddy.observation.SequenceLogger;
-import com.prodbuddy.observation.Slf4jSequenceLogger;
 
 /** Elasticsearch read-only query and analysis tool. */
 public final class ElasticsearchTool implements Tool {
@@ -32,8 +26,7 @@ public final class ElasticsearchTool implements Tool {
         this.readOnlyGuard = new ElasticReadOnlyGuard();
         this.client = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(5)).build();
-        this.seqLog = new Slf4jSequenceLogger(
-                ElasticsearchTool.class);
+        this.seqLog = com.prodbuddy.observation.ObservationContext.getLogger();
     }
 
     @Override
@@ -46,7 +39,7 @@ public final class ElasticsearchTool implements Tool {
 
     @Override
     public ToolStyling styling() {
-        return new ToolStyling("#B3E5FC", "#01579B", "#E1F5FE");
+        return new ToolStyling("#B3E5FC", "#01579B", "#E1F5FE", "🔎 Elasticsearch", java.util.Map.of());
     }
 
     @Override
@@ -58,8 +51,8 @@ public final class ElasticsearchTool implements Tool {
     public ToolResponse execute(
             final ToolRequest request, final ToolContext context) {
         seqLog.logSequence("AgentLoopOrchestrator",
-                "elasticsearch", "execute",
-                "ES " + request.operation());
+                "Elasticsearch", "execute",
+                "ES " + request.operation(), styling().toMetadata("Elasticsearch"));
         final String op = request.operation().toLowerCase();
         switch (op) {
             case "analyze": return handleAnalyze(request);
@@ -82,8 +75,8 @@ public final class ElasticsearchTool implements Tool {
     private ToolResponse handleAnalyze(final ToolRequest request) {
         final String query = queryBuilder.fromPayload(
                 request.payload());
-        seqLog.logSequence("elasticsearch",
-                "AgentLoopOrchestrator", "execute", "Analyzed");
+        seqLog.logSequence("Elasticsearch",
+                "AgentLoopOrchestrator", "execute", "Analyzed", styling().toMetadata("Elasticsearch"));
         return ToolResponse.ok(Map.of("query", query,
                 "analysis", "Query validated for v1 guardrails."));
     }
@@ -135,17 +128,17 @@ public final class ElasticsearchTool implements Tool {
             final String method, final int maxChars,
             final String index, final String body) {
         try {
-            Map<String, String> qMeta = new java.util.HashMap<>(styling().toMetadata());
+            Map<String, String> qMeta = new java.util.HashMap<>(styling().toMetadata("Elasticsearch"));
             qMeta.put("style", "query");
             qMeta.put("noteText", "Index: " + index + "\nQuery: " + body);
-            seqLog.logSequence("elasticsearch", "ElasticCluster",
+            seqLog.logSequence("Elasticsearch", "ElasticCluster",
                     "executeRequest", method + " " + endpoint, qMeta);
             final HttpResponse<String> resp = client.send(builder.build(),
                     HttpResponse.BodyHandlers.ofString());
             int status = resp.statusCode();
-            Map<String, String> rMeta = new java.util.HashMap<>(styling().toMetadata());
+            Map<String, String> rMeta = new java.util.HashMap<>(styling().toMetadata("Elasticsearch"));
             rMeta.put("style", status >= 400 ? "error" : "success");
-            seqLog.logSequence("ElasticCluster", "elasticsearch",
+            seqLog.logSequence("ElasticCluster", "Elasticsearch",
                     "executeRequest", "HTTP " + status, rMeta);
             final boolean trunc = resp.body() != null
                     && resp.body().length() > maxChars;
@@ -154,7 +147,7 @@ public final class ElasticsearchTool implements Tool {
                     "endpoint", endpoint, "method", method,
                     "truncated", trunc));
         } catch (Exception ex) {
-            seqLog.logSequence("ElasticCluster", "elasticsearch",
+            seqLog.logSequence("ElasticCluster", "Elasticsearch",
                     "executeRequest", "Failed");
             return elasticFailure(ex);
         }

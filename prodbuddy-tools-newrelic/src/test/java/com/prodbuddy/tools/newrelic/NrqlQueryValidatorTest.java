@@ -1,11 +1,10 @@
 package com.prodbuddy.tools.newrelic;
 
-import java.util.Map;
-
+import com.prodbuddy.core.tool.ToolResponse;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-import com.prodbuddy.core.tool.ToolResponse;
+import java.util.Map;
 
 class NrqlQueryValidatorTest {
 

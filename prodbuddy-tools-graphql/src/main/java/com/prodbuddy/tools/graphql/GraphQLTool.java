@@ -1,19 +1,11 @@
 package com.prodbuddy.tools.graphql;
 
-import com.prodbuddy.core.system.QueryService;
-import com.prodbuddy.core.tool.Tool;
-import com.prodbuddy.core.tool.ToolContext;
-import com.prodbuddy.core.tool.ToolMetadata;
-import com.prodbuddy.core.tool.ToolRequest;
-import com.prodbuddy.core.tool.ToolResponse;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.prodbuddy.core.system.QueryService;
+import com.prodbuddy.core.tool.*;
 
-import java.util.Map;
-import java.util.Set;
-import java.util.HashMap;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 /** GraphQL tool implementation. */
 public final class GraphQLTool implements Tool {
@@ -51,6 +43,11 @@ public final class GraphQLTool implements Tool {
     }
 
     @Override
+    public com.prodbuddy.core.tool.ToolStyling styling() {
+        return new com.prodbuddy.core.tool.ToolStyling("#FCE4EC", "#880E4F", "#F8BBD0", "🕸️ GraphQL", java.util.Map.of());
+    }
+
+    @Override
     public ToolMetadata metadata() {
         return new ToolMetadata(
             NAME,
@@ -77,6 +74,9 @@ public final class GraphQLTool implements Tool {
         @SuppressWarnings("unchecked")
         Map<String, Object> auth = (Map<String, Object>) request.payload()
                 .get("auth");
+
+        com.prodbuddy.observation.ObservationContext.log("Orchestrator", "GraphQL",
+                request.operation(), "requested", styling().toMetadata("GraphQL"));
 
         return switch (request.operation()) {
             case "query" -> handleQuery(request, url, auth);

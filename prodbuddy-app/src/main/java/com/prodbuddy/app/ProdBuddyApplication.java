@@ -1,24 +1,21 @@
 package com.prodbuddy.app;
 
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-
+import com.prodbuddy.context.ContextCollector;
+import com.prodbuddy.context.ContextFormatter;
+import com.prodbuddy.context.ConversationContext;
 import com.prodbuddy.core.tool.ToolContext;
 import com.prodbuddy.core.tool.ToolMetadata;
 import com.prodbuddy.core.tool.ToolRegistry;
 import com.prodbuddy.core.tool.ToolRequest;
-import com.prodbuddy.core.tool.ToolResponse;
-import com.prodbuddy.context.ContextCollector;
-import com.prodbuddy.context.ContextFormatter;
-import com.prodbuddy.context.ConversationContext;
 import com.prodbuddy.orchestrator.AgentLoopOrchestrator;
 import com.prodbuddy.orchestrator.LoopConfig;
 import com.prodbuddy.orchestrator.RuleBasedToolRouter;
+
+import java.nio.file.Path;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 public final class ProdBuddyApplication {
 

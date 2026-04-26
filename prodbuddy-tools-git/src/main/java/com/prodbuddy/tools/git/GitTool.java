@@ -1,10 +1,6 @@
 package com.prodbuddy.tools.git;
 
-import com.prodbuddy.core.tool.Tool;
-import com.prodbuddy.core.tool.ToolContext;
-import com.prodbuddy.core.tool.ToolMetadata;
-import com.prodbuddy.core.tool.ToolRequest;
-import com.prodbuddy.core.tool.ToolResponse;
+import com.prodbuddy.core.tool.*;
 
 import java.util.List;
 import java.util.Map;
@@ -18,6 +14,11 @@ public final class GitTool implements Tool {
 
     public GitTool() {
         this.runner = new GitCommandRunner();
+    }
+
+    @Override
+    public com.prodbuddy.core.tool.ToolStyling styling() {
+        return new com.prodbuddy.core.tool.ToolStyling("#CFD8DC", "#37474F", "#ECEFF1", "🐙 Git", java.util.Map.of());
     }
 
     @Override
@@ -36,6 +37,8 @@ public final class GitTool implements Tool {
         String repoPath = String.valueOf(
                 request.payload().getOrDefault("repoPath", context.envOrDefault("GIT_REPO_PATH", ".")));
         String op = request.operation().toLowerCase();
+        com.prodbuddy.observation.ObservationContext.log("Orchestrator", "Git", op, "executing", 
+                styling().toMetadata("Git"));
         return switch (op) {
             case "diff" -> handleDiff(request, repoPath);
             case "status" -> handleStatus(repoPath);

@@ -1,5 +1,8 @@
 package com.prodbuddy.tools.kubectl;
 
+import com.prodbuddy.core.tool.*;
+import com.prodbuddy.observation.SequenceLogger;
+
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.util.List;
@@ -7,14 +10,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-
-import com.prodbuddy.core.tool.Tool;
-import com.prodbuddy.core.tool.ToolContext;
-import com.prodbuddy.core.tool.ToolMetadata;
-import com.prodbuddy.core.tool.ToolRequest;
-import com.prodbuddy.core.tool.ToolResponse;
-import com.prodbuddy.observation.SequenceLogger;
-import com.prodbuddy.observation.Slf4jSequenceLogger;
 
 public final class KubectlTool implements Tool {
 
@@ -26,7 +21,12 @@ public final class KubectlTool implements Tool {
     public KubectlTool(KubectlCommandBuilder commandBuilder) {
         this.commandBuilder = commandBuilder;
         this.operationGuard = new KubectlOperationGuard();
-        this.seqLog = new Slf4jSequenceLogger(KubectlTool.class);
+        this.seqLog = com.prodbuddy.observation.ObservationContext.getLogger();
+    }
+
+    @Override
+    public com.prodbuddy.core.tool.ToolStyling styling() {
+        return new com.prodbuddy.core.tool.ToolStyling("#E0F7FA", "#006064", "#B2EBF2", "☸️ Kubectl", java.util.Map.of());
     }
 
     @Override
@@ -45,21 +45,25 @@ public final class KubectlTool implements Tool {
 
     @Override
     public ToolResponse execute(ToolRequest request, ToolContext context) {
-        seqLog.logSequence("AgentLoopOrchestrator", "kubectl", "execute", "Executing kubectl " + request.operation());
+        seqLog.logSequence("AgentLoopOrchestrator", "Kubectl", "execute", "Executing kubectl " + request.operation(),
+                styling().toMetadata("Kubectl"));
         String namespace = context.envOrDefault("KUBECTL_NAMESPACE", "default");
         List<String> command = commandBuilder.build(request.operation(), request.payload(), namespace);
         if (!operationGuard.isAllowed(request.operation(), command)) {
-            seqLog.logSequence("kubectl", "AgentLoopOrchestrator", "execute", "Blocked by read-only guard");
+            seqLog.logSequence("Kubectl", "AgentLoopOrchestrator", "execute", "Blocked by read-only guard",
+                    styling().toMetadata("Kubectl"));
             return ToolResponse.failure("KUBECTL_READ_ONLY", "operation/command not allowed in read-only mode");
         }
         boolean execute = Boolean.parseBoolean(String.valueOf(
                 request.payload().getOrDefault("execute", context.envOrDefault("KUBECTL_EXECUTE", "false"))
         ));
         if (!execute) {
-            seqLog.logSequence("kubectl", "AgentLoopOrchestrator", "execute", "Preview only (no exec)");
+            seqLog.logSequence("Kubectl", "AgentLoopOrchestrator", "execute", "Preview only (no exec)",
+                    styling().toMetadata("Kubectl"));
             return ToolResponse.ok(Map.of("command", String.join(" ", command), "executed", false));
         }
-        seqLog.logSequence("kubectl", "KubernetesCluster", "run", "Running command");
+        seqLog.logSequence("Kubectl", "KubernetesCluster", "run", "Running command", 
+                styling().toMetadata("Kubectl"));
         int timeoutSeconds = Integer.parseInt(context.envOrDefault("KUBECTL_TIMEOUT_SECONDS", "20"));
         final boolean noTruncate = Boolean.parseBoolean(String.valueOf(request.payload().getOrDefault("noTruncate", "false")));
         final int maxOutputChars = noTruncate ? Integer.MAX_VALUE : Integer.parseInt(String.valueOf(request.payload().getOrDefault("maxOutputChars", 

@@ -1,7 +1,9 @@
 package com.prodbuddy.core.system;
 
 import org.junit.jupiter.api.Test;
+
 import java.util.Map;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 public class QueryServiceTest {

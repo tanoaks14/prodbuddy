@@ -1,11 +1,11 @@
 package com.prodbuddy.orchestrator;
 
-import java.util.Optional;
-
 import com.prodbuddy.core.tool.ToolRequest;
 import com.prodbuddy.core.tool.ToolRouter;
 import com.prodbuddy.observation.SequenceLogger;
 import com.prodbuddy.observation.Slf4jSequenceLogger;
+
+import java.util.Optional;
 
 public final class RuleBasedToolRouter implements ToolRouter {
 
@@ -18,18 +18,18 @@ public final class RuleBasedToolRouter implements ToolRouter {
      * Default constructor.
      */
     public RuleBasedToolRouter() {
-        this.seqLog = new Slf4jSequenceLogger(RuleBasedToolRouter.class);
+        this.seqLog = com.prodbuddy.observation.ObservationContext.getLogger();
     }
 
     @Override
     public Optional<String> route(final ToolRequest request) {
         String intent = request.intent().toLowerCase();
-        seqLog.logSequence("RuleBasedToolRouter", "RuleEngine",
+        seqLog.logSequence("ToolRouter", "RuleEngine",
             "route", "Matching intent: " + intent);
         Optional<String> matched = evaluateRoute(intent);
-        if (matched.isPresent() && matched.get().equals("pdf")) {
-            seqLog.logSequence("RuleEngine", "RuleBasedToolRouter",
-                "route", "Matched pdf");
+        if (matched.isPresent()) {
+            seqLog.logSequence("RuleEngine", "ToolRouter",
+                "route", "Matched " + matched.get());
         }
         return matched;
     }

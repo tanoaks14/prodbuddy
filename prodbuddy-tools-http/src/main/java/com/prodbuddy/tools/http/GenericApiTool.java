@@ -1,24 +1,19 @@
 package com.prodbuddy.tools.http;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.prodbuddy.core.tool.*;
+import com.prodbuddy.observation.SequenceLogger;
+
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
-import java.util.Map;
-import java.util.Set;
 import java.util.HashMap;
 import java.util.List;
-
-import com.prodbuddy.core.tool.Tool;
-import com.prodbuddy.core.tool.ToolContext;
-import com.prodbuddy.core.tool.ToolMetadata;
-import com.prodbuddy.core.tool.ToolRequest;
-import com.prodbuddy.core.tool.ToolResponse;
-import com.prodbuddy.observation.SequenceLogger;
-import com.prodbuddy.observation.Slf4jSequenceLogger;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.JsonNode;
+import java.util.Map;
+import java.util.Set;
 
 /** Generic API tool implementation. */
 public final class GenericApiTool implements Tool {
@@ -54,7 +49,12 @@ public final class GenericApiTool implements Tool {
                              final HttpClient httpClient) {
         this.methodSupport = support;
         this.client = httpClient;
-        this.seqLog = new Slf4jSequenceLogger(GenericApiTool.class);
+        this.seqLog = com.prodbuddy.observation.ObservationContext.getLogger();
+    }
+
+    @Override
+    public com.prodbuddy.core.tool.ToolStyling styling() {
+        return new com.prodbuddy.core.tool.ToolStyling("#E8EAF6", "#1A237E", "#C5CAE9", "🌐 HTTP", java.util.Map.of());
     }
 
     @Override
@@ -76,8 +76,8 @@ public final class GenericApiTool implements Tool {
     @Override
     public ToolResponse execute(final ToolRequest request,
                                 final ToolContext context) {
-        seqLog.logSequence("AgentLoopOrchestrator", "http", "execute",
-                "HTTP " + request.operation());
+        seqLog.logSequence("AgentLoopOrchestrator", "Http", "execute",
+                "HTTP " + request.operation(), styling().toMetadata("Http"));
         String defaultMethod = "download_base64".equalsIgnoreCase(request.operation())
                 ? "GET" : request.operation();
         String method = String.valueOf(request.payload().getOrDefault("method",
@@ -93,7 +93,8 @@ public final class GenericApiTool implements Tool {
             return ToolResponse.failure("HTTP_URL", "url is required");
         }
 
-        seqLog.logSequence("http", "ExternalAPI", "send", method + " " + url);
+        seqLog.logSequence("Http", "ExternalAPI", "send", method + " " + url, 
+                styling().toMetadata("Http"));
         HttpRequest httpRequest = buildRequest(method, url, request.payload(),
                 context);
         if ("download_base64".equalsIgnoreCase(request.operation())) {
@@ -162,8 +163,8 @@ public final class GenericApiTool implements Tool {
         try {
             HttpResponse<byte[]> response = client.send(httpRequest,
                     HttpResponse.BodyHandlers.ofByteArray());
-            seqLog.logSequence("ExternalAPI", "http", "sendBinary",
-                    "Response: " + response.statusCode());
+            seqLog.logSequence("ExternalAPI", "Http", "sendBinary",
+                    "Response: " + response.statusCode(), styling().toMetadata("Http"));
 
             String base64 = java.util.Base64.getEncoder()
                     .encodeToString(response.body());
@@ -178,8 +179,8 @@ public final class GenericApiTool implements Tool {
 
             return ToolResponse.ok(data);
         } catch (Exception exception) {
-            seqLog.logSequence("ExternalAPI", "http", "sendBinary",
-                    "Failed: " + exception.getMessage());
+            seqLog.logSequence("ExternalAPI", "Http", "sendBinary",
+                    "Failed: " + exception.getMessage(), styling().toMetadata("Http"));
             return ToolResponse.failure("HTTP_BINARY_FAILED",
                     exception.getMessage());
         }
@@ -193,8 +194,8 @@ public final class GenericApiTool implements Tool {
         try {
             HttpResponse<String> response = client.send(httpRequest,
                     HttpResponse.BodyHandlers.ofString());
-            seqLog.logSequence("ExternalAPI", "http", "send",
-                    "Response: " + response.statusCode());
+            seqLog.logSequence("ExternalAPI", "Http", "send",
+                    "Response: " + response.statusCode(), styling().toMetadata("Http"));
 
             int maxChars = resolveMaxChars(toolRequest, context);
             String body = response.body();
@@ -211,8 +212,8 @@ public final class GenericApiTool implements Tool {
             tryParseJson(response.body(), data);
             return ToolResponse.ok(data);
         } catch (Exception exception) {
-            seqLog.logSequence("ExternalAPI", "http", "send",
-                    "Failed: " + exception.getMessage());
+            seqLog.logSequence("ExternalAPI", "Http", "send",
+                    "Failed: " + exception.getMessage(), styling().toMetadata("Http"));
             return ToolResponse.failure("HTTP_CALL_FAILED",
                     exception.getMessage());
         }
