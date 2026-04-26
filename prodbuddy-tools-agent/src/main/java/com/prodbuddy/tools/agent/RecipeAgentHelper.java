@@ -94,6 +94,11 @@ public final class RecipeAgentHelper {
         for (RecipeStep step : def.steps()) {
             if (!toolMap.containsKey(step.tool())) {
                 errors.add("Unknown tool: " + step.tool());
+            } else if ("json".equals(step.tool()) && "extract".equals(step.operation())) {
+                Object pathsObj = step.rawParams().get("paths");
+                if (pathsObj != null && !(pathsObj instanceof Map)) {
+                    errors.add("Step '" + step.name() + "': json.extract requires 'paths' to be formatted as a Map (key-value pairs) with proper YAML indentation.");
+                }
             }
         }
     }
