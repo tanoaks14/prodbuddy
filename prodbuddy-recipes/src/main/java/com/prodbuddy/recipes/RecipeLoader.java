@@ -14,7 +14,7 @@ public final class RecipeLoader {
         List<String> lines = Files.readAllLines(file);
         int bodyStart = findBodyStart(lines);
         Map<String, String> frontmatter = parseFrontmatter(lines);
-        List<RecipeStep> steps = parseSteps(lines, bodyStart);
+        List<RecipeStep> steps = parseSteps(lines, bodyStart, file);
         List<RecipeStep> resolvedSteps = resolveInclusions(steps, file);
         return buildDefinition(frontmatter, resolvedSteps, file);
     }
@@ -40,14 +40,14 @@ public final class RecipeLoader {
         if (sep < 0) return;
         result.put(line.substring(0, sep).trim(), line.substring(sep + KV_SEPARATOR.length()).trim());
     }
-    private List<RecipeStep> parseSteps(List<String> lines, int bodyStart) {
+    private List<RecipeStep> parseSteps(List<String> lines, int bodyStart, Path recipeFile) {
         List<RecipeStep> steps = new ArrayList<>();
         String currentStepName = null;
         List<String> currentParams = new ArrayList<>();
         for (int i = bodyStart; i < lines.size(); i++) {
             String line = lines.get(i);
             if (line.startsWith(STEP_HEADING_PREFIX)) {
-                if (currentStepName != null) steps.add(buildStep(currentStepName, currentParams));
+                if (currentStepName != null) steps.add(buildStep(currentStepName, currentParams, recipeFile));
                 currentStepName = line.substring(STEP_HEADING_PREFIX.length()).trim();
                 currentParams = new ArrayList<>();
             } else if (currentStepName != null) {
@@ -55,15 +55,15 @@ public final class RecipeLoader {
                 currentParams.add(line);
             }
         }
-        if (currentStepName != null) steps.add(buildStep(currentStepName, currentParams));
+        if (currentStepName != null) steps.add(buildStep(currentStepName, currentParams, recipeFile));
         return steps;
     }
-    private RecipeStep buildStep(String name, List<String> paramLines) {
+    private RecipeStep buildStep(String name, List<String> paramLines, Path recipeFile) {
         lastKeys.clear();
         Map<String, Object> params = new LinkedHashMap<>();
         java.util.Set<String> blockKeys = new java.util.HashSet<>();
         String currentKey = null;
-        for (String line : paramLines) currentKey = processStepLine(line, params, currentKey, blockKeys);
+        for (String line : paramLines) currentKey = processStepLine(line, params, currentKey, blockKeys, recipeFile);
         String tool = nvl((String) params.remove("tool")).trim();
         String op = nvl((String) params.remove("operation")).trim();
         String cond = nvl((String) params.remove("condition")).trim();
@@ -92,19 +92,37 @@ public final class RecipeLoader {
         List<RecipeStep> nested = p.containsKey("steps") ? parseNestedSteps(p.remove("steps")) : List.of();
         return new RecipeStep(name, tool, op, cond, fe, as, stop, nested, p);
     }
-    private String processStepLine(String line, Map<String, Object> params, String currentKey, java.util.Set<String> blockKeys) {
-        boolean isIndented = line.startsWith("  ") || line.startsWith("\t");
+    private String processStepLine(String line, Map<String, Object> params, String currentKey, java.util.Set<String> blockKeys, Path recipeFile) {
+        if (line.trim().isEmpty()) return handleEmptyLine(currentKey, blockKeys, params, recipeFile);
+        boolean isIndented = line.startsWith(" ") || line.startsWith("\t");
         int sep = line.indexOf(':');
         if (sep >= 0 && !isIndented) {
             String key = line.substring(0, sep).trim(), val = stripQuotes(line.substring(sep + 1).trim());
-            boolean isBlock = "|".equals(val) || ">".equals(val);
-            params.put(key, isBlock ? "" : val);
-            if (isBlock) blockKeys.add(key);
-            return key;
+            return handleNewKey(key, val, params, blockKeys, recipeFile);
         } else if (currentKey != null) {
-            handleIndentedLine(params.get(currentKey), line, params, currentKey, blockKeys.contains(currentKey));
+            handleIndentedLine(params.get(currentKey), line, params, currentKey, blockKeys.contains(currentKey), recipeFile);
         }
         return currentKey;
+    }
+    private String handleEmptyLine(String key, java.util.Set<String> blocks, Map<String, Object> params, Path file) {
+        if (key != null && blocks.contains(key)) handleIndentedLine(params.get(key), "", params, key, true, file);
+        return key;
+    }
+    private String handleNewKey(String key, String val, Map<String, Object> params, java.util.Set<String> blocks, Path file) {
+        String v = val.startsWith("@file:") ? readFileContent(file, val.substring(6)) : val;
+        boolean isBlock = "|".equals(v) || ">".equals(v);
+        params.put(key, isBlock ? "" : v);
+        if (isBlock) blocks.add(key);
+        return key;
+    }
+    private String readFileContent(Path currentFile, String rawPath) {
+        try {
+            Path path = currentFile.getParent().resolve(rawPath.trim());
+            if (!Files.exists(path)) path = Path.of(rawPath.trim());
+            return Files.readString(path);
+        } catch (IOException e) {
+            return "FILE_NOT_FOUND: " + rawPath;
+        }
     }
     private String stripQuotes(String val) {
         if (val.length() >= 2 && ((val.startsWith("\"") && val.endsWith("\"")) || (val.startsWith("'") && val.endsWith("'")))) {
@@ -114,21 +132,37 @@ public final class RecipeLoader {
     }
     private final Map<Integer, String> lastKeys = new java.util.HashMap<>();
     @SuppressWarnings("unchecked")
-    private void handleIndentedLine(Object existing, String line, Map<String, Object> params, String key, boolean isBlock) {
+    private void handleIndentedLine(Object existing, String line, Map<String, Object> params, String key, boolean isBlock, Path recipeFile) {
+        if (isBlock) {
+            handleBlockLine(existing, line, params, key, recipeFile);
+            return;
+        }
         String stripped = line.stripLeading();
         int indent = line.indexOf(stripped), subSep = stripped.indexOf(':');
         if (stripped.startsWith("- ") || "steps".equals(key)) {
             handleGeneralList(params, key, stripped);
             return;
         }
-        if (!isBlock && subSep > 0 && !stripped.substring(0, subSep).contains(" ")) {
-            String subKey = stripped.substring(0, subSep).trim(), subVal = stripQuotes(stripped.substring(subSep + 1).trim());
-            Map<String, Object> parent = getOrCreateParent(params, key, indent);
-            parent.put(subKey, subVal);
-            lastKeys.put(indent, subKey);
+        if (subSep > 0 && !stripped.substring(0, subSep).contains(" ")) {
+            handleNestedKey(stripped, subSep, params, key, indent);
             return;
         }
         if (existing instanceof String s) params.put(key, s + stripped + "\n");
+    }
+    private void handleBlockLine(Object existing, String line, Map<String, Object> params, String key, Path recipeFile) {
+        if (line.trim().isEmpty()) {
+            if (existing instanceof String s) params.put(key, s + "\n");
+            return;
+        }
+        String val = line.substring(Math.min(line.length(), 2));
+        if (val.startsWith("@file:")) val = readFileContent(recipeFile, val.substring(6));
+        if (existing instanceof String s) params.put(key, s + val + "\n");
+    }
+    private void handleNestedKey(String stripped, int subSep, Map<String, Object> params, String key, int indent) {
+        String subKey = stripped.substring(0, subSep).trim(), subVal = stripQuotes(stripped.substring(subSep + 1).trim());
+        Map<String, Object> parent = getOrCreateParent(params, key, indent);
+        parent.put(subKey, subVal);
+        lastKeys.put(indent, subKey);
     }
     @SuppressWarnings("unchecked")
     private void handleGeneralList(Map<String, Object> params, String key, String line) {

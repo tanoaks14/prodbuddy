@@ -7,12 +7,13 @@ description: Tests the new graphql.format operation and list-based queries.
 tool: graphql
 operation: format
 validate: true
-query:
-  - "query getFiltered($filter: CountryFilterInput) {"
-  - "  countries(filter: $filter) {"
-  - "    name"
-  - "  }"
-  - "}"
+query: |
+  query getFiltered($filter: CountryFilterInput) {
+    countries(filter: $filter) {
+      name
+    }
+  }
+
 
 ## test-validation-failure
 tool: graphql

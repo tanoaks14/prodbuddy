@@ -104,10 +104,16 @@ public final class GraphQLTool implements Tool {
 
     private ToolResponse handleFormat(final ToolRequest request) {
         String query = resolveQuery(request.payload().get("query"));
+        Map<String, Object> variables = null;
+        try {
+            variables = resolveVariables(request.payload().get("variables"));
+        } catch (Exception e) {
+            // Variables optional for format
+        }
         boolean validate = Boolean.parseBoolean(String.valueOf(
                 request.payload().getOrDefault("validate", "false")));
         if (validate) {
-            String error = validateQuery(query, null);
+            String error = validateQuery(query, variables);
             if (error != null) {
                 return ToolResponse.failure("GQL_VALIDATION_ERROR", error);
             }
