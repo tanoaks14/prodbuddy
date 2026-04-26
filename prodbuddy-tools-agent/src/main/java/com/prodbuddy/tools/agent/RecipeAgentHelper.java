@@ -94,11 +94,31 @@ public final class RecipeAgentHelper {
         for (RecipeStep step : def.steps()) {
             if (!toolMap.containsKey(step.tool())) {
                 errors.add("Unknown tool: " + step.tool());
-            } else if ("json".equals(step.tool()) && "extract".equals(step.operation())) {
-                Object pathsObj = step.rawParams().get("paths");
-                if (pathsObj != null && !(pathsObj instanceof Map)) {
-                    errors.add("Step '" + step.name() + "': json.extract requires 'paths' to be formatted as a Map (key-value pairs) with proper YAML indentation.");
-                }
+            } else {
+                validateToolSpecifics(step, errors);
+            }
+        }
+    }
+
+    private void validateToolSpecifics(RecipeStep step, List<String> errors) {
+        if ("json".equals(step.tool()) && "extract".equals(step.operation())) {
+            Object pathsObj = step.rawParams().get("paths");
+            if (pathsObj != null && !(pathsObj instanceof Map)) {
+                errors.add("Step '" + step.name() + "': json.extract requires 'paths' to be formatted as a Map (key-value pairs) with proper YAML indentation.");
+            }
+        } else if ("elasticsearch".equals(step.tool())) {
+            validateElasticTool(step, errors);
+        }
+    }
+
+    private void validateElasticTool(RecipeStep step, List<String> errors) {
+        if (step.rawParams().containsKey("data") && !step.rawParams().containsKey("body") && !step.rawParams().containsKey("queryDsl")) {
+            errors.add("Step '" + step.name() + "': elasticsearch tool uses 'body', 'queryDsl', or 'queryString' for queries, not 'data'. Please rename 'data' to 'body'.");
+        }
+        if (step.rawParams().containsKey("body")) {
+            Object bodyObj = step.rawParams().get("body");
+            if (bodyObj instanceof Map) {
+                errors.add("Step '" + step.name() + "': elasticsearch 'body' parameter was parsed as a Map (likely due to multi-line JSON without the '|' character). Please use the 'queryDsl' parameter instead for multi-line JSON objects, or format 'body' as a multi-line string using 'body: |'.");
             }
         }
     }

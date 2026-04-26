@@ -21,6 +21,7 @@ public final class ElasticsearchQueryBuilder {
     }
 
     public String fromPayload(Map<String, Object> payload) {
+        validate(payload);
         String rawBody = String.valueOf(payload.getOrDefault("body", "")).trim();
         if (!rawBody.isBlank()) {
             return rawBody;
@@ -40,6 +41,32 @@ public final class ElasticsearchQueryBuilder {
             return buildMatchAll(size);
         }
         return buildFieldMatch(field, value, size);
+    }
+
+    public void validate(Map<String, Object> payload) {
+        if (payload.containsKey("data") && !payload.containsKey("body") && !payload.containsKey("queryDsl")) {
+            throw new IllegalArgumentException("Elasticsearch tool uses 'body', 'queryDsl', or 'queryString' for queries, not 'data'.");
+        }
+        Object body = payload.get("body");
+        if (body instanceof Map) {
+            throw new IllegalArgumentException("Elasticsearch 'body' parameter was parsed as a Map. "
+                    + "Please use 'queryDsl' for multi-line JSON objects, or use 'body: |' for multi-line strings.");
+        }
+        if (body != null) {
+            String b = String.valueOf(body).trim();
+            if (b.startsWith("{") && !isValidJson(b)) {
+                throw new IllegalArgumentException("Elasticsearch 'body' starts with '{' but is not valid JSON.");
+            }
+        }
+    }
+
+    private boolean isValidJson(String json) {
+        try {
+            mapper.readTree(json);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private String buildQueryString(String queryString, int size) {

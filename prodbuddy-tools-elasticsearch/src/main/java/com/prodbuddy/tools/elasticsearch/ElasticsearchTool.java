@@ -34,7 +34,7 @@ public final class ElasticsearchTool implements Tool {
         return new ToolMetadata(NAME, "Elasticsearch tool",
                 Set.of("elasticsearch.analyze", "elasticsearch.query",
                         "elasticsearch.search", "elasticsearch.count",
-                        "elasticsearch.request"));
+                        "elasticsearch.request", "elasticsearch.validate"));
     }
 
     @Override
@@ -55,7 +55,9 @@ public final class ElasticsearchTool implements Tool {
                 "ES " + request.operation(), styling().toMetadata("Elasticsearch"));
         final String op = request.operation().toLowerCase();
         switch (op) {
-            case "analyze": return handleAnalyze(request);
+            case "analyze":
+            case "validate":
+                return handleValidate(request);
             case "query":
             case "search":
                 return executeRequest(request, context,
@@ -68,17 +70,22 @@ public final class ElasticsearchTool implements Tool {
             default:
                 return ToolResponse.failure(
                         "ELASTIC_UNSUPPORTED_OPERATION",
-                        "supported: analyze,query,search,count,request");
+                        "supported: analyze,validate,query,search,count,request");
         }
     }
 
-    private ToolResponse handleAnalyze(final ToolRequest request) {
-        final String query = queryBuilder.fromPayload(
-                request.payload());
-        seqLog.logSequence("Elasticsearch",
-                "AgentLoopOrchestrator", "execute", "Analyzed", styling().toMetadata("Elasticsearch"));
-        return ToolResponse.ok(Map.of("query", query,
-                "analysis", "Query validated for v1 guardrails."));
+    private ToolResponse handleValidate(final ToolRequest request) {
+        try {
+            final String query = queryBuilder.fromPayload(
+                    request.payload());
+            seqLog.logSequence("Elasticsearch",
+                    "AgentLoopOrchestrator", "execute", "Validated", styling().toMetadata("Elasticsearch"));
+            return ToolResponse.ok(Map.of("query", query,
+                    "status", "valid",
+                    "analysis", "Query syntax and formatting validated successfully."));
+        } catch (Exception e) {
+            return ToolResponse.failure("ELASTIC_VALIDATION_FAILED", e.getMessage());
+        }
     }
 
     private ToolResponse executeRawRequest(
