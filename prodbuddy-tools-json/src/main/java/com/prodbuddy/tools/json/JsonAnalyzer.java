@@ -101,10 +101,12 @@ public final class JsonAnalyzer {
         try {
             JsonNode root = mapper.readTree(jsonStr);
             trace.add("root");
-            if (path == null || path.isBlank() || "$".equals(path)) {
+            if (path == null || path.isBlank() || "$".equals(path.trim())) {
                 return new TraceResult(root, trace);
             }
-            return walkPathParts(root, path.split("\\."), trace);
+            // Replace non-breaking spaces and trim
+            String normalizedPath = path.replace("\u00A0", " ").trim();
+            return walkPathParts(root, normalizedPath.split("\\."), trace);
         } catch (JsonProcessingException e) {
             trace.add("ERROR: " + e.getMessage());
             return new TraceResult(null, trace);
@@ -115,7 +117,9 @@ public final class JsonAnalyzer {
                                       final List<String> trace) {
         JsonNode current = root;
         for (String part : parts) {
-            current = walkStep(current, part, trace);
+            String trimmedPart = part.trim();
+            if (trimmedPart.isEmpty()) continue;
+            current = walkStep(current, trimmedPart, trace);
             if (current == null || current.isMissingNode()) {
                 return new TraceResult(null, trace);
             }
