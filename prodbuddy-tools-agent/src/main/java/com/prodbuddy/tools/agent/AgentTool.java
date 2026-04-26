@@ -150,9 +150,10 @@ public final class AgentTool implements Tool {
             String opinion = client.generate(prompt, images, config);
             Map<String, String> meta = new java.util.HashMap<>(styling().toMetadata("Agent"));
             meta.put("style", "thinking");
-            meta.put("noteText", "Agent Opinion:\n" + opinion);
+            meta.put("noteColor", "#FFF59D");
+            meta.put("noteText", "Agent Analysis:\n" + opinion);
             
-            seqLog.logSequence("Agent", "AgentLoopOrchestrator", "think", "Opinion", meta);
+            seqLog.logSequence("Agent", "AgentLoopOrchestrator", "think", opinion, meta);
             return ToolResponse.ok(Map.of("opinion", opinion,
                      "status", "analyzed"));
         } catch (Exception e) {

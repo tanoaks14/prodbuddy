@@ -114,9 +114,10 @@ public final class LocalDiagramRenderer {
                                      final java.util.Map<String, String> meta) {
         String nColor = meta.get("noteColor");
         if (nColor != null) {
+            String noteText = meta.getOrDefault("noteText", m);
             sb.append("note over ").append(s).append(" ")
               .append(nColor).append("\n");
-            sb.append("  ").append(m).append("\n");
+            sb.append("  ").append(noteText.replace("\n", "\\n")).append("\n");
             sb.append("end note\n");
         }
     }
