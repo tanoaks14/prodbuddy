@@ -153,12 +153,43 @@ public final class MermaidSequenceGenerator {
             sb.append("<span style='background-color:").append(noteColor)
               .append("; color:").append(textColor).append("; padding:2px;'>");
         }
-        String text = noteText.replace("\n", "<br/>");
+        String wrapped = wrap(noteText, 50);
+        String text = wrapped.replace("\n", "<br/>");
         sb.append(sanitizeLabel(text));
         if (!noteColor.isEmpty()) {
             sb.append("</span>");
         }
         sb.append("\n");
+    }
+
+    private String wrap(final String text, final int width) {
+        if (text == null || text.length() <= width) {
+            return text;
+        }
+        StringBuilder sb = new StringBuilder();
+        int lastSpace = -1;
+        int lineStart = 0;
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (c == ' ') {
+                lastSpace = i;
+            } else if (c == '\n') {
+                lineStart = i + 1;
+                lastSpace = -1;
+            }
+            if (i - lineStart >= width) {
+                if (lastSpace != -1) {
+                    sb.append(text, lineStart, lastSpace).append("\n");
+                    lineStart = lastSpace + 1;
+                    lastSpace = -1;
+                } else {
+                    sb.append(text, lineStart, i).append("\n");
+                    lineStart = i;
+                }
+            }
+        }
+        sb.append(text.substring(lineStart));
+        return sb.toString();
     }
 
     private void appendArrow(final StringBuilder sb,
