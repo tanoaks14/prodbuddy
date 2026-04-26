@@ -4,30 +4,39 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Global singleton for accessing the observation system.
- * Allows SPI-loaded tools to contribute to the shared trace.
  */
 public final class ObservationContext {
 
-    private static final AtomicReference<SequenceLogger> LOGGER = 
-        new AtomicReference<>(new Slf4jSequenceLogger(ObservationContext.class));
+    /** The global logger instance. */
+    private static final AtomicReference<SequenceLogger> LOGGER =
+        new AtomicReference<>(new Slf4jSequenceLogger(
+                ObservationContext.class));
 
-    private ObservationContext() {}
+    /** Private constructor. */
+    private ObservationContext() { }
 
     /**
-     * Sets the global logger (e.g. to a RecordingSequenceLogger).
+     * Sets the global logger.
+     * @param logger the new logger instance.
      */
-    public static void setLogger(SequenceLogger logger) {
+    public static void setLogger(final SequenceLogger logger) {
         LOGGER.set(logger);
     }
 
+    /** @return the current global logger. */
     public static SequenceLogger getLogger() {
         return LOGGER.get();
     }
 
     /**
      * Convenience method for logging.
+     * @param sender source
+     * @param receiver destination
+     * @param method method
+     * @param action action
      */
-    public static void log(String sender, String receiver, String method, String action) {
+    public static void log(final String sender, final String receiver,
+                           final String method, final String action) {
         LOGGER.get().logSequence(sender, receiver, method, action);
     }
 }

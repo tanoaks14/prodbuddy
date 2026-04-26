@@ -9,6 +9,7 @@ import com.prodbuddy.core.tool.ToolContext;
 import com.prodbuddy.core.tool.ToolMetadata;
 import com.prodbuddy.core.tool.ToolRequest;
 import com.prodbuddy.core.tool.ToolResponse;
+import com.prodbuddy.core.tool.ToolStyling;
 import com.prodbuddy.observation.SequenceLogger;
 import com.prodbuddy.observation.Slf4jSequenceLogger;
 
@@ -33,7 +34,7 @@ public final class NewRelicTool implements Tool {
         this.catalog = catalog;
         this.queryBuilder = new NrqlQueryBuilder();
         this.validator = new NrqlQueryValidator(NrqlGuardrails.defaults());
-        this.client = new NrqlGraphQLClient(seqLog);
+        this.client = new NrqlGraphQLClient(seqLog, styling());
         this.queryService = new QueryService();
         this.dataService = new DashboardDataService(client, seqLog);
     }
@@ -69,6 +70,11 @@ public final class NewRelicTool implements Tool {
     @Override
     public boolean supports(ToolRequest request) {
         return "newrelic".equalsIgnoreCase(request.intent());
+    }
+
+    @Override
+    public ToolStyling styling() {
+        return new ToolStyling("#B2DFDB", "#004D40", "#E0F2F1");
     }
 
     @Override

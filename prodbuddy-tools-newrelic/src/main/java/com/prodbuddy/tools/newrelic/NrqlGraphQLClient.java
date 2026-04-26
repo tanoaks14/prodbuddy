@@ -23,16 +23,21 @@ public final class NrqlGraphQLClient {
     private final HttpClient client;
     /** Logger. */
     private final SequenceLogger seqLog;
+    /** Styling. */
+    private final com.prodbuddy.core.tool.ToolStyling styling;
 
     /**
      * Create a client.
      * @param seqLog the logger
+     * @param styling the styling
      */
-    public NrqlGraphQLClient(final SequenceLogger seqLog) {
+    public NrqlGraphQLClient(final SequenceLogger seqLog,
+                             final com.prodbuddy.core.tool.ToolStyling styling) {
         this.client = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(CONNECT_TIMEOUT_SEC))
             .build();
         this.seqLog = seqLog;
+        this.styling = styling;
     }
 
     /**
@@ -105,13 +110,24 @@ public final class NrqlGraphQLClient {
                               final String query,
                               final boolean debug) {
         try {
+            Map<String, String> qMeta = new java.util.HashMap<>(styling.toMetadata());
+            qMeta.put("style", "query");
+            qMeta.put("noteText", "NRQL/GQL Query:\n" + query);
+            
+            seqLog.logSequence("newrelic", "NerdGraph", "POST", "Executing GraphQL", qMeta);
+            
             HttpResponse<String> response = client.send(request,
                 HttpResponse.BodyHandlers.ofString());
             
+            int status = response.statusCode();
+            Map<String, String> rMeta = new java.util.HashMap<>(styling.toMetadata());
+            rMeta.put("style", status >= 400 ? "error" : "success");
+            
+            seqLog.logSequence("NerdGraph", "newrelic", "RESPONSE", "HTTP " + status, rMeta);
+
             if (debug) {
-                 seqLog.logSequence("NrqlGraphQLClient", "newrelic", "send",
-                         "GQL RESP [" + response.statusCode() + "]: " 
-                                 + response.body());
+                seqLog.logSequence("newrelic", "Agent", "debug", 
+                        "Body: " + response.body());
             }
 
             return ToolResponse.ok(Map.of("status", response.statusCode(),

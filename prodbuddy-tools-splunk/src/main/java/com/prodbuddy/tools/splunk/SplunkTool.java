@@ -19,27 +19,20 @@ import com.prodbuddy.core.tool.ToolContext;
 import com.prodbuddy.core.tool.ToolMetadata;
 import com.prodbuddy.core.tool.ToolRequest;
 import com.prodbuddy.core.tool.ToolResponse;
+import com.prodbuddy.core.tool.ToolStyling;
 import com.prodbuddy.observation.SequenceLogger;
 import com.prodbuddy.observation.Slf4jSequenceLogger;
 
 /** Splunk search tool implementation. */
 public final class SplunkTool implements Tool {
-    /** Tool name. */
     private static final String NAME = "splunk";
-    /** Token auth mode. */
     private static final String MODE_TOKEN = "token";
-    /** User auth mode. */
     private static final String MODE_USER = "user";
-    /** SSO auth mode. */
     private static final String MODE_SSO = "sso";
-    /** Session auth mode. */
     private static final String MODE_SESSION = "session";
-    /** Cookie auth mode. */
     private static final String MODE_COOKIE = "cookie";
-    /** Session key JSON pattern. */
     private static final Pattern SESSION_KEY_JSON = Pattern.compile(
             "\"sessionKey\"\\s*:\\s*\"([^\"]+)\"");
-    /** Session key XML pattern. */
     private static final Pattern SESSION_KEY_XML = Pattern.compile(
             "<sessionKey>([^<]+)</sessionKey>");
 
@@ -61,24 +54,12 @@ public final class SplunkTool implements Tool {
     /** Sequence logger. */
     private final SequenceLogger seqLog;
 
-    /**
-     * Constructor.
-     * @param operationGuard Operation guard.
-     */
     public SplunkTool(final SplunkOperationGuard operationGuard) {
-        this(operationGuard, SplunkHttpClientFactory.buildInsecure(),
-                new QueryService());
+        this(operationGuard, SplunkHttpClientFactory.buildInsecure(), new QueryService());
     }
 
-    /**
-     * Protected constructor for testing.
-     * @param operationGuard Operation guard.
-     * @param httpClient HTTP client.
-     * @param qs Query service.
-     */
     protected SplunkTool(final SplunkOperationGuard operationGuard,
-                         final HttpClient httpClient,
-                         final QueryService qs) {
+                         final HttpClient httpClient, final QueryService qs) {
         this.guard = operationGuard;
         this.queryService = qs;
         this.queryBuilder = new SplunkQueryBuilder(qs);
@@ -86,13 +67,7 @@ public final class SplunkTool implements Tool {
         this.seqLog = com.prodbuddy.observation.ObservationContext.getLogger();
     }
 
-    /**
-     * Protected constructor for testing.
-     * @param operationGuard Operation guard.
-     * @param httpClient HTTP client.
-     */
-    protected SplunkTool(final SplunkOperationGuard operationGuard,
-                         final HttpClient httpClient) {
+    protected SplunkTool(final SplunkOperationGuard operationGuard, final HttpClient httpClient) {
         this(operationGuard, httpClient, new QueryService());
     }
 
@@ -101,6 +76,11 @@ public final class SplunkTool implements Tool {
         return new ToolMetadata(NAME, "Splunk search tool", Set.of(
                 "splunk.search", "splunk.oneshot", "splunk.jobs",
                 "splunk.results", "splunk.login"));
+    }
+
+    @Override
+    public ToolStyling styling() {
+        return new ToolStyling("#FFCCBC", "#4E342E", "#FBE9E7");
     }
 
     @Override
@@ -233,8 +213,15 @@ public final class SplunkTool implements Tool {
             final ToolContext context) {
         String attempted = "op=" + op + ", path=" + path + ", search=" + search;
         try {
+            Map<String, String> qMeta = new java.util.HashMap<>(styling().toMetadata());
+            qMeta.put("style", "query"); qMeta.put("noteText", "Search: " + search);
+            seqLog.logSequence("splunk", "SplunkAPI", "CALL", op + " " + path, qMeta);
             HttpResponse<String> response = client.send(request,
                     HttpResponse.BodyHandlers.ofString());
+            int status = response.statusCode();
+            Map<String, String> rMeta = new java.util.HashMap<>(styling().toMetadata());
+            rMeta.put("style", status >= 400 ? "error" : "success");
+            seqLog.logSequence("SplunkAPI", "splunk", "RESPONSE", "HTTP " + status, rMeta);
             String body = response.body();
             if (response.statusCode() >= HTTP_BAD_REQUEST
                     || body.contains("\"type\":\"ERROR\"")
@@ -244,9 +231,7 @@ public final class SplunkTool implements Tool {
             return ToolResponse.ok(SplunkToolHelper.buildResponseData(
                     response, op, mode, toolRequest, context));
         } catch (IOException | InterruptedException ex) {
-            if (ex instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-            }
+            if (ex instanceof InterruptedException) { Thread.currentThread().interrupt(); }
             return SplunkToolHelper.exceptionFailure(ex, attempted);
         }
     }

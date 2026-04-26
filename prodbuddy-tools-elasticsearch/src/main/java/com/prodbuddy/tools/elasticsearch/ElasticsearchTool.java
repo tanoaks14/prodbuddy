@@ -13,6 +13,7 @@ import com.prodbuddy.core.tool.ToolContext;
 import com.prodbuddy.core.tool.ToolMetadata;
 import com.prodbuddy.core.tool.ToolRequest;
 import com.prodbuddy.core.tool.ToolResponse;
+import com.prodbuddy.core.tool.ToolStyling;
 import com.prodbuddy.observation.SequenceLogger;
 import com.prodbuddy.observation.Slf4jSequenceLogger;
 
@@ -41,6 +42,11 @@ public final class ElasticsearchTool implements Tool {
                 Set.of("elasticsearch.analyze", "elasticsearch.query",
                         "elasticsearch.search", "elasticsearch.count",
                         "elasticsearch.request"));
+    }
+
+    @Override
+    public ToolStyling styling() {
+        return new ToolStyling("#B3E5FC", "#01579B", "#E1F5FE");
     }
 
     @Override
@@ -121,24 +127,29 @@ public final class ElasticsearchTool implements Tool {
         final HttpRequest.Builder builder = createRequest(
                 baseUrl, index, endpoint, method, body, timeout);
         addAuthHeader(builder, request, context);
-        return doSend(builder, endpoint, method, maxChars);
+        return doSend(builder, endpoint, method, maxChars, index, body);
     }
 
     private ToolResponse doSend(
             final HttpRequest.Builder builder, final String endpoint,
-            final String method, final int maxChars) {
+            final String method, final int maxChars,
+            final String index, final String body) {
         try {
+            Map<String, String> qMeta = new java.util.HashMap<>(styling().toMetadata());
+            qMeta.put("style", "query");
+            qMeta.put("noteText", "Index: " + index + "\nQuery: " + body);
             seqLog.logSequence("elasticsearch", "ElasticCluster",
-                    "executeRequest", method + " " + endpoint);
-            final HttpResponse<String> resp = client.send(
-                    builder.build(),
+                    "executeRequest", method + " " + endpoint, qMeta);
+            final HttpResponse<String> resp = client.send(builder.build(),
                     HttpResponse.BodyHandlers.ofString());
+            int status = resp.statusCode();
+            Map<String, String> rMeta = new java.util.HashMap<>(styling().toMetadata());
+            rMeta.put("style", status >= 400 ? "error" : "success");
             seqLog.logSequence("ElasticCluster", "elasticsearch",
-                    "executeRequest", "Response: " + resp.statusCode());
+                    "executeRequest", "HTTP " + status, rMeta);
             final boolean trunc = resp.body() != null
                     && resp.body().length() > maxChars;
-            return ToolResponse.ok(Map.of(
-                    "status", resp.statusCode(),
+            return ToolResponse.ok(Map.of("status", resp.statusCode(),
                     "body", truncate(resp.body(), maxChars),
                     "endpoint", endpoint, "method", method,
                     "truncated", trunc));

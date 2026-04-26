@@ -39,8 +39,8 @@ class ObservationToolTest {
         
         assertTrue(mermaid.contains("sequenceDiagram"));
         // Check for participant declarations
-        assertTrue(mermaid.contains("participant \"User\" as actor_User"));
-        assertTrue(mermaid.contains("participant \"Interactive\" as actor_Interactive"));
+        assertTrue(mermaid.contains("participant actor_User as \"User\""));
+        assertTrue(mermaid.contains("participant actor_Interactive as \"Interactive\""));
         
         // Check for arrows using safe IDs
         assertTrue(mermaid.contains("actor_User->>actor_Interactive: ask (Ready?)"));
@@ -76,8 +76,8 @@ class ObservationToolTest {
         assertEquals(200, stepLines, "Should be limited to 200 events");
         
         // Check participant declarations with spaces and special chars
-        assertTrue(mermaid.contains("participant \"Service A\" as actor_Service_A"));
-        assertTrue(mermaid.contains("participant \"Database (Prod)\" as actor_Database__Prod_"));
+        assertTrue(mermaid.contains("participant actor_Service_A as \"Service A\""));
+        assertTrue(mermaid.contains("participant actor_Database__Prod_ as \"Database (Prod)\""));
         
         // Check if characters like [] and # are preserved in labels
         assertTrue(mermaid.contains("actor_Service_A->>actor_Database__Prod_: find[User] (ID: #123; name: 'O'Reilly')"));

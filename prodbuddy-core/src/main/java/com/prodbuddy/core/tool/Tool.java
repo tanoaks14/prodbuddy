@@ -7,4 +7,11 @@ public interface Tool {
     boolean supports(ToolRequest request);
 
     ToolResponse execute(ToolRequest request, ToolContext context) throws ToolExecutionException;
+
+    /**
+     * @return the visual styling for this tool.
+     */
+    default ToolStyling styling() {
+        return ToolStyling.DEFAULT;
+    }
 }

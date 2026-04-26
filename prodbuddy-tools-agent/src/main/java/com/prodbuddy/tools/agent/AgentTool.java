@@ -7,6 +7,7 @@ import com.prodbuddy.core.tool.ToolContext;
 import com.prodbuddy.core.tool.ToolMetadata;
 import com.prodbuddy.core.tool.ToolRequest;
 import com.prodbuddy.core.tool.ToolResponse;
+import com.prodbuddy.core.tool.ToolStyling;
 
 import java.util.Map;
 import java.util.Set;
@@ -41,6 +42,11 @@ public final class AgentTool implements Tool {
     @Override
     public boolean supports(final ToolRequest request) {
         return metadata().capabilities().contains(request.operation());
+    }
+
+    @Override
+    public ToolStyling styling() {
+        return new ToolStyling("#D1C4E9", "#4A148C", "#F3E5F5");
     }
 
     @Override
@@ -142,10 +148,13 @@ public final class AgentTool implements Tool {
         java.util.List<String> images = extractImages(request.payload());
         try {
             String opinion = client.generate(prompt, images, config);
-            seqLog.logSequence("agent", "AgentLoopOrchestrator", "think", "Opinion", 
-                Map.of("type", "note", "noteText", opinion));
+            Map<String, String> meta = new java.util.HashMap<>(styling().toMetadata());
+            meta.put("style", "thinking");
+            meta.put("noteText", "Agent Opinion:\n" + opinion);
+            
+            seqLog.logSequence("agent", "AgentLoopOrchestrator", "think", "Opinion", meta);
             return ToolResponse.ok(Map.of("opinion", opinion,
-                    "status", "analyzed"));
+                     "status", "analyzed"));
         } catch (Exception e) {
             return ToolResponse.failure("LLM_ERROR",
                     "Failed to generate opinion: " + e.getMessage());
