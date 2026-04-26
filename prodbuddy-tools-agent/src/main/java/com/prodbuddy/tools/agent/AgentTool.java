@@ -16,7 +16,16 @@ import java.util.Set;
  */
 public final class AgentTool implements Tool {
 
-    private final OllamaAgentClient client = new OllamaAgentClient();
+    private final com.prodbuddy.core.agent.OllamaAgentClient client = new com.prodbuddy.core.agent.OllamaAgentClient();
+    private final com.prodbuddy.observation.SequenceLogger seqLog;
+
+    public AgentTool() {
+        this(com.prodbuddy.observation.ObservationContext.getLogger());
+    }
+
+    public AgentTool(com.prodbuddy.observation.SequenceLogger seqLog) {
+        this.seqLog = seqLog;
+    }
 
     @Override
     public ToolMetadata metadata() {
@@ -133,6 +142,8 @@ public final class AgentTool implements Tool {
         java.util.List<String> images = extractImages(request.payload());
         try {
             String opinion = client.generate(prompt, images, config);
+            seqLog.logSequence("agent", "AgentLoopOrchestrator", "think", "Opinion", 
+                Map.of("type", "note", "noteText", opinion));
             return ToolResponse.ok(Map.of("opinion", opinion,
                     "status", "analyzed"));
         } catch (Exception e) {

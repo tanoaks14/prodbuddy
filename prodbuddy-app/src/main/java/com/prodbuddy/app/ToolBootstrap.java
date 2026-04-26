@@ -39,12 +39,17 @@ public final class ToolBootstrap {
     public ToolRegistry createRegistry() {
         RuleBasedToolRouter router = new RuleBasedToolRouter();
 
-        // 1. Discover simple tools via SPI
+        // 1. Initialize shared logger first so all tools (including SPI ones) use it
+        RecordingSequenceLogger sharedLog = new RecordingSequenceLogger(
+                new Slf4jSequenceLogger(ToolBootstrap.class));
+        com.prodbuddy.observation.ObservationContext.setLogger(sharedLog);
+
+        // 2. Discover simple tools via SPI
         ToolRegistry discovered = ToolRegistry.discover();
         List<Tool> allTools = new ArrayList<>(discovered.all());
 
-        // 2. Manually wire complex tools
-        allTools.addAll(createManualTools());
+        // 3. Manually wire complex tools
+        allTools.addAll(createManualTools(sharedLog));
 
         // 3. System tool requires a circular ref to the registry
         AtomicReference<ToolRegistry> registryRef = new AtomicReference<>();
@@ -56,13 +61,7 @@ public final class ToolBootstrap {
         return finalRegistry;
     }
 
-    private List<Tool> createManualTools() {
-        RecordingSequenceLogger sharedLog = new RecordingSequenceLogger(
-                new Slf4jSequenceLogger(ToolBootstrap.class));
-        
-        // Initialize global context so SPI tools can also log
-        com.prodbuddy.observation.ObservationContext.setLogger(sharedLog);
-        
+    private List<Tool> createManualTools(RecordingSequenceLogger sharedLog) {
         Tool observation = new ObservationTool(sharedLog);
         Tool pdf = new PdfTool(new LocalOpenDataLoaderPdfAdapter());
         Tool elasticsearch = new ElasticsearchTool(new ElasticsearchQueryBuilder());

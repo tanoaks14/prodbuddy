@@ -18,7 +18,7 @@ public final class ToolRegistry {
         for (Tool tool : tools) {
             toolsByName.put(tool.metadata().name(), tool);
         }
-        this.seqLog = new com.prodbuddy.observation.Slf4jSequenceLogger(ToolRegistry.class);
+        this.seqLog = com.prodbuddy.observation.ObservationContext.getLogger();
     }
 
     /**

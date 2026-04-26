@@ -33,16 +33,43 @@ public final class MermaidSequenceGenerator {
     }
 
     private void appendParticipants(StringBuilder sb, List<ObservationEvent> limited) {
-        java.util.Set<String> actors = new java.util.HashSet<>();
+        java.util.Map<String, String> actorToColor = new java.util.HashMap<>();
         for (ObservationEvent event : limited) {
-            actors.add(event.getSender());
-            actors.add(event.getReceiver());
+            recordActorColor(actorToColor, event.getSender(), event.getMetadata());
+            recordActorColor(actorToColor, event.getReceiver(), event.getMetadata());
         }
 
-        for (String actor : actors) {
+        for (java.util.Map.Entry<String, String> entry : actorToColor.entrySet()) {
+            String actor = entry.getKey();
+            String color = entry.getValue();
             sb.append("    participant ").append(quote(actor))
-              .append(" as ").append(getSafeActorId(actor)).append("\n");
+              .append(" as ").append(getSafeActorId(actor));
+            if (!color.isEmpty()) {
+                sb.append(" ").append(color);
+            }
+            sb.append("\n");
         }
+    }
+
+    private void recordActorColor(java.util.Map<String, String> map, String actor, java.util.Map<String, String> meta) {
+        if (map.containsKey(actor)) return;
+        
+        String color = meta.getOrDefault("actorColor", "");
+        if (color.isEmpty()) {
+            color = getDefaultColorForTool(actor);
+        }
+        map.put(actor, color);
+    }
+
+    private String getDefaultColorForTool(String tool) {
+        String lower = tool.toLowerCase();
+        if (lower.contains("agent")) return "#D1C4E9"; // Light Purple
+        if (lower.contains("newrelic")) return "#B2DFDB"; // Light Teal
+        if (lower.contains("splunk")) return "#FFCCBC"; // Light Orange/Red
+        if (lower.contains("interactive")) return "#FFF9C4"; // Light Yellow
+        if (lower.contains("elasticsearch")) return "#B3E5FC"; // Light Blue
+        if (lower.contains("observation")) return "#F5F5F5"; // Light Gray
+        return "";
     }
 
     private void appendEvents(StringBuilder sb, List<ObservationEvent> limited) {
@@ -51,6 +78,13 @@ public final class MermaidSequenceGenerator {
             String r = getSafeActorId(event.getReceiver());
             String m = sanitizeLabel(event.getMethod());
             String a = sanitizeLabel(event.getAction());
+            java.util.Map<String, String> meta = event.getMetadata();
+
+            if ("note".equals(meta.get("type")) || isThinking(event)) {
+                String noteText = meta.getOrDefault("noteText", m + (a.isEmpty() ? "" : ": " + a));
+                sb.append("    Note over ").append(s).append(": ").append(sanitizeLabel(noteText)).append("\n");
+                continue;
+            }
 
             sb.append("    ").append(s).append("->>").append(r)
               .append(": ").append(m);
@@ -59,6 +93,11 @@ public final class MermaidSequenceGenerator {
             }
             sb.append("\n");
         }
+    }
+
+    private boolean isThinking(ObservationEvent event) {
+        String m = event.getMethod().toLowerCase();
+        return m.contains("think") || m.contains("analyze") || m.contains("opinion");
     }
 
     private void appendTruncationNote(StringBuilder sb, List<ObservationEvent> limited, 

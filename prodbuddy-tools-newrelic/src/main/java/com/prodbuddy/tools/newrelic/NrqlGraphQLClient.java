@@ -69,8 +69,8 @@ public final class NrqlGraphQLClient {
 
         boolean debug = "true".equalsIgnoreCase(context.envOrDefault("DEBUG", "false"));
         if (debug) {
-            seqLog.logSequence("newrelic", "NrqlGraphQLClient", "query",
-                    "GQL REQ: " + graphqlBody);
+            seqLog.logSequence("newrelic", "NerdGraph", "query", "Executing GraphQL Query", 
+                Map.of("type", "note", "noteText", "GQL: " + graphqlBody));
         }
 
         String region = context.envOrDefault("NEWRELIC_REGION", "US")

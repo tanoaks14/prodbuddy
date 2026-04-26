@@ -88,22 +88,33 @@ final class RecipeCliHandler {
             System.out.println("Recipe not found: " + name + " (dir=" + dir + ")");
             return;
         }
+        executeRecipe(name, dir, recipe, env, orchestrator, agentConfig);
+    }
+
+    private static void executeRecipe(String name, String dir, RecipeDefinition recipe,
+            Map<String, String> env, AgentLoopOrchestrator orchestrator,
+            com.prodbuddy.core.agent.AgentConfig agentConfig) {
         ToolContext context = new ToolContext(UUID.randomUUID().toString(), env, orchestrator.registry());
         ConversationContext convCtx = new ConversationContext(context.requestId());
         ContextCollector collector = new ContextCollector(orchestrator::run, convCtx);
-        
-        String fullContent = "";
-        try {
-            fullContent = java.nio.file.Files.readString(Path.of(dir, name + ".md"));
-        } catch (Exception e) {
-            seqLog.logSequence("RecipeCliHandler", "FileSystem", "readRecipe", "Could not read raw recipe for system context: " + e.getMessage());
-        }
-
+        String fullContent = readRecipeFile(dir, name);
         RecipeRunResult result = new RecipeRunner().run(recipe, fullContent, context, collector);
         printRecipeSteps(result);
         Map<String, Object> summary = RecipeReport.summarize(result);
         printRecipeSummary(summary);
-        runRecipeLlm(name, summary, convCtx, agentConfig);
+        if (recipe.analysis()) {
+            runRecipeLlm(name, summary, convCtx, agentConfig);
+        }
+    }
+
+    private static String readRecipeFile(String dir, String name) {
+        try {
+            return java.nio.file.Files.readString(Path.of(dir, name + ".md"));
+        } catch (Exception e) {
+            seqLog.logSequence("RecipeCliHandler", "FileSystem", "readRecipe",
+                "Could not read raw recipe: " + e.getMessage());
+            return "";
+        }
     }
 
     private static Map<String, String> applyVars(String[] args, Map<String, String> environment) {

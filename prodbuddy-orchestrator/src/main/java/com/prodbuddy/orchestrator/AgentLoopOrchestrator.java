@@ -38,7 +38,7 @@ public final class AgentLoopOrchestrator {
         this.registry = theRegistry;
         this.router = theRouter;
         this.config = theConfig;
-        this.seqLog = new Slf4jSequenceLogger(AgentLoopOrchestrator.class);
+        this.seqLog = com.prodbuddy.observation.ObservationContext.getLogger();
     }
 
     /** @return the tool registry. */

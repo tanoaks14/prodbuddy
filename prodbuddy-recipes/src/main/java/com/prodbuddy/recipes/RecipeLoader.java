@@ -270,7 +270,8 @@ public final class RecipeLoader {
         String name = frontmatter.getOrDefault("name", fileBaseName(file));
         String description = frontmatter.getOrDefault("description", "");
         List<String> tags = parseTags(frontmatter.getOrDefault("tags", ""));
-        return new RecipeDefinition(name, description, tags, steps);
+        boolean analysis = Boolean.parseBoolean(frontmatter.getOrDefault("analysis", "false"));
+        return new RecipeDefinition(name, description, tags, analysis, steps);
     }
 
     private List<String> parseTags(String raw) {
@@ -287,7 +288,6 @@ public final class RecipeLoader {
         }
         return tags;
     }
-
     private String fileBaseName(Path file) {
         String fileName = file.getFileName().toString();
         int dot = fileName.lastIndexOf('.');

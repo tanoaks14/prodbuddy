@@ -22,7 +22,7 @@ public final class RecipeRunner {
 
     private final RecipeVarResolver resolver = new RecipeVarResolver();
     private final LogicEvaluator evaluator = new LogicEvaluator();
-    private final SequenceLogger seqLog = new Slf4jSequenceLogger(RecipeRunner.class);
+    private final SequenceLogger seqLog = com.prodbuddy.observation.ObservationContext.getLogger();
     private RecipeRegistry registry;
 
     public RecipeRunResult run(

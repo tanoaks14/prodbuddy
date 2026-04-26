@@ -83,7 +83,7 @@ public final class SplunkTool implements Tool {
         this.queryService = qs;
         this.queryBuilder = new SplunkQueryBuilder(qs);
         this.client = httpClient;
-        this.seqLog = new Slf4jSequenceLogger(SplunkTool.class);
+        this.seqLog = com.prodbuddy.observation.ObservationContext.getLogger();
     }
 
     /**
@@ -176,6 +176,8 @@ public final class SplunkTool implements Tool {
         String method = resolveMethod(op, request.payload());
 
         try {
+            seqLog.logSequence("agent", "splunk", op, "Executing Splunk Search", 
+                Map.of("type", "note", "noteText", "Search: " + search));
             HttpRequest httpRequest = buildRequest(baseUrl, path, body, auth,
                     mode, method, request.payload());
             return send(httpRequest, op, search, path, mode, request, context);

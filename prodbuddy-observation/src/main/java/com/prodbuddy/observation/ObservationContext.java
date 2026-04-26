@@ -20,9 +20,6 @@ public final class ObservationContext {
         LOGGER.set(logger);
     }
 
-    /**
-     * Gets the current global logger.
-     */
     public static SequenceLogger getLogger() {
         return LOGGER.get();
     }
