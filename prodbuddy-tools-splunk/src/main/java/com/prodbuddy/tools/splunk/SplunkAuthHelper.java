@@ -17,7 +17,7 @@ import java.util.regex.Pattern;
 /**
  * Helper for Splunk authentication.
  */
-final class SplunkAuthHelper {
+public final class SplunkAuthHelper {
 
     private SplunkAuthHelper() { }
 
@@ -29,7 +29,7 @@ final class SplunkAuthHelper {
      * @param context Tool context.
      * @return Resolved credential.
      */
-    static String resolveCredential(
+    public static String resolveCredential(
             final String payloadKey, final String envKey,
             final ToolRequest request, final ToolContext context) {
         Object payloadValue = request.payload().get(payloadKey);
@@ -45,7 +45,7 @@ final class SplunkAuthHelper {
      * @param password Splunk password.
      * @return URL-encoded login body.
      */
-    static String buildLoginBody(final String username, final String password) {
+    public static String buildLoginBody(final String username, final String password) {
         return "username=" + URLEncoder.encode(username, StandardCharsets.UTF_8)
                 + "&password=" + URLEncoder.encode(password,
                 StandardCharsets.UTF_8) + "&output_mode=json";
@@ -58,7 +58,7 @@ final class SplunkAuthHelper {
      * @param xmlPattern XML pattern.
      * @return Session key or null.
      */
-    static String extractSessionKey(
+    public static String extractSessionKey(
             final String body, final Pattern jsonPattern,
             final Pattern xmlPattern) {
         if (body == null || body.isBlank()) {
@@ -87,7 +87,7 @@ final class SplunkAuthHelper {
      * @param timeout Timeout.
      * @return Auth value.
      */
-    static String loginAndBuildAuthValue(
+    public static String loginAndBuildAuthValue(
             final HttpClient client, final ToolRequest req,
             final ToolContext ctx, final String baseUrl,
             final boolean isCookie, final Pattern jsonPattern,
@@ -126,7 +126,7 @@ final class SplunkAuthHelper {
      * @throws IOException on error.
      * @throws InterruptedException on error.
      */
-    static String executeLogin(final HttpClient client, final String baseUrl,
+    public static String executeLogin(final HttpClient client, final String baseUrl,
                                final String user, final String pass,
                                final int timeout)
             throws IOException, InterruptedException {
@@ -148,7 +148,7 @@ final class SplunkAuthHelper {
      * @param defaultMode Default mode.
      * @return Resolved mode.
      */
-    static String resolveAuthMode(final ToolRequest req, final ToolContext ctx,
+    public static String resolveAuthMode(final ToolRequest req, final ToolContext ctx,
                                   final String defaultMode) {
         return String.valueOf(req.payload().getOrDefault("authMode",
                 ctx.envOrDefault("SPLUNK_AUTH_MODE", defaultMode)))
@@ -161,7 +161,7 @@ final class SplunkAuthHelper {
      * @param ctx Tool context.
      * @return true if enabled.
      */
-    static boolean resolveAuthEnabled(final ToolRequest req,
+    public static boolean resolveAuthEnabled(final ToolRequest req,
                                       final ToolContext ctx) {
         return Boolean.parseBoolean(String.valueOf(req.payload().getOrDefault(
                 "authEnabled", ctx.envOrDefault("SPLUNK_AUTH_ENABLED",

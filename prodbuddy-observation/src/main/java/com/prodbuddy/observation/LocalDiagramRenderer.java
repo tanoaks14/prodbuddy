@@ -115,12 +115,40 @@ public final class LocalDiagramRenderer {
         String nColor = meta.get("noteColor");
         if (nColor != null) {
             String noteText = meta.getOrDefault("noteText", m);
-            String wrapped = wrap(noteText, 80);
+            String mdText = renderMarkdown(noteText);
+            String wrapped = wrap(mdText, 80);
             sb.append("note over ").append(s).append(" ")
               .append(nColor).append("\n");
             sb.append("  ").append(wrapped).append("\n");
             sb.append("end note\n");
         }
+    }
+
+    private String renderMarkdown(final String text) {
+        if (text == null) {
+            return null;
+        }
+        String res = text;
+        // Headers: # Header -> <b><size:16>Header</size></b>
+        res = res.replaceAll("(?m)^#+\\s*(.*)$", "<b><size:16>$1</size></b>");
+        
+        // Bold-Italic: ***text*** -> <b><i>text</i></b>
+        res = res.replaceAll("\\*\\*\\*([^\\*\\n]+)\\*\\*\\*", "<b><i>$1</i></b>");
+        
+        // Bold: **text** or __text__ -> <b>text</b>
+        res = res.replaceAll("\\*\\*([^\\*\\n]+)\\*\\*", "<b>$1</b>");
+        res = res.replaceAll("__([^\\_\\n]+)__", "<b>$1</b>");
+        
+        // Italic: *text* or _text_ -> <i>text</i>
+        res = res.replaceAll("\\*([^\\*\\n]+)\\*", "<i>$1</i>");
+        res = res.replaceAll("_([^\\_\\n]+)_", "<i>$1</i>");
+        
+        // Monospace: `text` -> <font:monospaced>text</font>
+        res = res.replaceAll("`([^`\\n]+)`", "<font:monospaced>$1</font>");
+        
+        // Lists: - item or * item -> * item
+        res = res.replaceAll("(?m)^[-*] (.*)$", "* $1");
+        return res;
     }
 
     private String wrap(final String text, final int width) {
@@ -156,9 +184,9 @@ public final class LocalDiagramRenderer {
     private String getArrowType(final String m, final String a) {
         String lowerM = m.toLowerCase();
         String lowerA = a.toLowerCase();
-        
-        if (lowerA.contains("error") || lowerA.contains("failed") 
-                || (lowerA.startsWith("http ") && !lowerA.startsWith("http 2"))) {
+        if (lowerA.contains("error") || lowerA.contains("failed")
+                || (lowerA.startsWith("http ")
+                    && !lowerA.startsWith("http 2"))) {
             return " -[#red]> ";
         }
         

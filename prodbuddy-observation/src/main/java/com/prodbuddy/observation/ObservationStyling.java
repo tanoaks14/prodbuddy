@@ -10,7 +10,9 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class ObservationStyling {
 
-    private static final Map<String, Styling> REGISTRY = new ConcurrentHashMap<>();
+    /** The registry map. */
+    private static final Map<String, Styling> REGISTRY =
+            new ConcurrentHashMap<>();
 
     private ObservationStyling() {
     }
@@ -25,7 +27,8 @@ public final class ObservationStyling {
                                 final String displayName,
                                 final String color) {
         if (actorId != null) {
-            REGISTRY.put(actorId.toLowerCase(), new Styling(displayName, color));
+            REGISTRY.put(actorId.toLowerCase(),
+                    new Styling(displayName, color));
         }
     }
 
@@ -45,7 +48,9 @@ public final class ObservationStyling {
      * Styling data for an actor.
      */
     public static final class Styling {
+        /** The display name. */
         private final String displayName;
+        /** The hex color. */
         private final String color;
 
         private Styling(final String name, final String col) {
@@ -53,10 +58,18 @@ public final class ObservationStyling {
             this.color = col;
         }
 
+        /**
+         * Gets the display name.
+         * @return The display name
+         */
         public String getDisplayName() {
             return displayName;
         }
 
+        /**
+         * Gets the color.
+         * @return The hex color
+         */
         public String getColor() {
             return color;
         }

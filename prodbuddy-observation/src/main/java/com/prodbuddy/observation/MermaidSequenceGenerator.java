@@ -153,13 +153,38 @@ public final class MermaidSequenceGenerator {
             sb.append("<span style='background-color:").append(noteColor)
               .append("; color:").append(textColor).append("; padding:2px;'>");
         }
-        String wrapped = wrap(noteText, 80);
+        String mdText = renderMarkdown(noteText);
+        String wrapped = wrap(mdText, 80);
         String text = wrapped.replace("\n", "<br/>");
         sb.append(sanitizeLabel(text));
         if (!noteColor.isEmpty()) {
             sb.append("</span>");
         }
         sb.append("\n");
+    }
+
+    private String renderMarkdown(final String text) {
+        if (text == null) {
+            return null;
+        }
+        String res = text;
+        // Headers: # Header -> <b>Header</b>
+        res = res.replaceAll("(?m)^#+\\s*(.*)$", "<b>$1</b>");
+        // Bold-Italic: ***text*** -> <b><i>$1</i></b>
+        res = res.replaceAll("\\*\\*\\*([^\\*\\n]+)\\*\\*\\*",
+                "<b><i>$1</i></b>");
+        // Bold: **text** or __text__ -> <b>text</b>
+        res = res.replaceAll("\\*\\*([^\\*\\n]+)\\*\\*", "<b>$1</b>");
+        res = res.replaceAll("__([^\\_\\n]+)__", "<b>$1</b>");
+        // Italic: *text* or _text_ -> <i>text</i>
+        res = res.replaceAll("\\*([^\\*\\n]+)\\*", "<i>$1</i>");
+        res = res.replaceAll("_([^\\_\\n]+)_", "<i>$1</i>");
+        
+        // Monospace: `text` -> <code>text</code>
+        res = res.replaceAll("`([^`\\n]+)`", "<code>$1</code>");
+        // Lists: - item or * item -> &bull; item
+        res = res.replaceAll("(?m)^[-*] (.*)$", "&bull; $1");
+        return res;
     }
 
     private String wrap(final String text, final int width) {
@@ -259,34 +284,12 @@ public final class MermaidSequenceGenerator {
     }
 
     private String quote(final String text) {
-        if (text == null) {
-            return "\"\"";
-        }
-        return "\"" + text.replace("\"", "'") + "\"";
+        return text == null ? "\"\"" : "\"" + text.replace("\"", "'") + "\"";
     }
 
     private String sanitizeLabel(final String text) {
-        if (text == null) {
-            return "";
-        }
-        return text.replace("\n", " ")
-                   .replace("\r", " ")
-                   .replace("->>", "->")
-                   .replace("\"", "'")
-                   .trim();
-    }
-
-    private String sanitize(final String text, final int maxLength) {
-        if (text == null) {
-            return "unknown";
-        }
-        String cleaned = text.replaceAll("[^a-zA-Z0-9\\s._\\-:/]", "")
-                             .replace("\n", " ")
-                             .replace("\r", " ")
-                             .trim();
-        if (cleaned.length() > maxLength) {
-            return cleaned.substring(0, maxLength - TRUNC_SUFFIX) + "...";
-        }
-        return cleaned;
+        return text == null ? "" : text.replace("\n", " ")
+                .replace("\r", " ").replace("->>", "->")
+                .replace("\"", "'").trim();
     }
 }
