@@ -14,7 +14,7 @@ class ManualRecipeTest {
     @Test
     void testSplunkBrowserMimicResolution() throws Exception {
         RecipeLoader loader = new RecipeLoader();
-        RecipeDefinition recipe = loader.load(Path.of("d:/apps/prodbuddy/recipes/splunk-browser-mimic.md"));
+        RecipeDefinition recipe = loader.load(Path.of("..", "recipes", "splunk-browser-mimic.md"));
         
         ToolContext context = new ToolContext("test-req", Map.of(
                 "SPLUNK_BASE_URL", "https://splunk.test",
