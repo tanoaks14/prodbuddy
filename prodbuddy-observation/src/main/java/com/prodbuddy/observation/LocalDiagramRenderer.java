@@ -115,10 +115,10 @@ public final class LocalDiagramRenderer {
         String nColor = meta.get("noteColor");
         if (nColor != null) {
             String noteText = meta.getOrDefault("noteText", m);
-            String wrapped = wrap(noteText, 50);
+            String wrapped = wrap(noteText, 80);
             sb.append("note over ").append(s).append(" ")
               .append(nColor).append("\n");
-            sb.append("  ").append(wrapped.replace("\n", "\\n")).append("\n");
+            sb.append("  ").append(wrapped).append("\n");
             sb.append("end note\n");
         }
     }

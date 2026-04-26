@@ -153,7 +153,7 @@ public final class MermaidSequenceGenerator {
             sb.append("<span style='background-color:").append(noteColor)
               .append("; color:").append(textColor).append("; padding:2px;'>");
         }
-        String wrapped = wrap(noteText, 50);
+        String wrapped = wrap(noteText, 80);
         String text = wrapped.replace("\n", "<br/>");
         sb.append(sanitizeLabel(text));
         if (!noteColor.isEmpty()) {
