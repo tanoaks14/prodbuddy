@@ -108,6 +108,23 @@ public final class RecipeAgentHelper {
             }
         } else if ("elasticsearch".equals(step.tool())) {
             validateElasticTool(step, errors);
+        } else if ("graphql".equals(step.tool())) {
+            validateGraphQLTool(step, errors);
+        }
+    }
+
+    private void validateGraphQLTool(RecipeStep step, List<String> errors) {
+        if (!step.rawParams().containsKey("url")) {
+            errors.add("Step '" + step.name() + "': graphql tool requires a 'url' parameter.");
+        }
+        if ("query".equals(step.operation())) {
+            if (!step.rawParams().containsKey("query")) {
+                errors.add("Step '" + step.name() + "': graphql.query requires a 'query' parameter containing the GraphQL query string.");
+            }
+            Object vars = step.rawParams().get("variables");
+            if (vars != null && !(vars instanceof Map) && !(vars instanceof String && ((String) vars).contains("${"))) {
+                errors.add("Step '" + step.name() + "': graphql 'variables' should be a Map of key-value pairs.");
+            }
         }
     }
 

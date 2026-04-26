@@ -23,20 +23,27 @@ public final class RecipeVarResolver {
 
     private static final Pattern PLACEHOLDER = Pattern.compile("\\$\\{([^}]+)}");
 
-    public String resolve(String value, ToolContext ctx, Map<String, ToolResponse> stepResults) {
+    public Object resolve(String value, ToolContext ctx, Map<String, ToolResponse> stepResults) {
         return resolve(value, ctx, stepResults, Map.of());
     }
 
-    public String resolve(String value, ToolContext ctx, Map<String, ToolResponse> stepResults, Map<String, Object> localVars) {
+    public Object resolve(String value, ToolContext ctx, Map<String, ToolResponse> stepResults, Map<String, Object> localVars) {
         if (value == null || !value.contains("${")) {
             return value;
         }
+        
+        // Optimization: If the value is EXACTLY one placeholder, return the raw object.
         Matcher matcher = PLACEHOLDER.matcher(value);
+        if (matcher.matches()) {
+            return resolveKey(matcher.group(1), ctx, stepResults, localVars);
+        }
+
+        matcher.reset();
         StringBuilder sb = new StringBuilder();
         while (matcher.find()) {
             String key = matcher.group(1);
-            String resolved = resolveKey(key, ctx, stepResults, localVars);
-            matcher.appendReplacement(sb, Matcher.quoteReplacement(resolved));
+            Object resolved = resolveKey(key, ctx, stepResults, localVars);
+            matcher.appendReplacement(sb, Matcher.quoteReplacement(String.valueOf(resolved)));
         }
         matcher.appendTail(sb);
         return sb.toString();
@@ -74,13 +81,20 @@ public final class RecipeVarResolver {
             }
             return resolvedMap;
         }
+        if (val instanceof List<?> list) {
+            List<Object> resolvedList = new java.util.ArrayList<>();
+            for (Object item : list) {
+                resolvedList.add(resolveRecursively(item, ctx, stepResults, localVars));
+            }
+            return resolvedList;
+        }
         return val;
     }
 
-    private String resolveKey(String key, ToolContext ctx, Map<String, ToolResponse> stepResults, Map<String, Object> localVars) {
+    private Object resolveKey(String key, ToolContext ctx, Map<String, ToolResponse> stepResults, Map<String, Object> localVars) {
         // 1. Check local scope first (loop variables)
         if (localVars != null && localVars.containsKey(key)) {
-            return String.valueOf(localVars.get(key));
+            return localVars.get(key);
         }
 
         int dot = key.indexOf('.');
@@ -102,7 +116,7 @@ public final class RecipeVarResolver {
         return resolveStepPath(stepName, path, stepResults);
     }
 
-    private String resolveStepPath(String stepName, String path, Map<String, ToolResponse> stepResults) {
+    private Object resolveStepPath(String stepName, String path, Map<String, ToolResponse> stepResults) {
         ToolResponse response = stepResults.get(stepName);
         if (response == null) {
             return "${" + stepName + "." + path + "}";
@@ -115,7 +129,7 @@ public final class RecipeVarResolver {
 
         Map<String, Object> data = unwrapIfOrchestrator(response.data(), path);
         Object value = walkPath(data, path);
-        return value != null ? String.valueOf(value) : "${" + stepName + "." + path + "}";
+        return value != null ? value : "${" + stepName + "." + path + "}";
     }
 
     @SuppressWarnings("unchecked")

@@ -130,12 +130,22 @@ public final class JsonAnalyzer {
     private JsonNode walkStep(final JsonNode node, final String part,
                               final List<String> trace) {
         if (node == null || node.isMissingNode()) {
-            trace.add(part + " -> MISSING (previous node was null)");
+            trace.add(part + " -> MISSING (parent is null/missing)");
             return null;
         }
         JsonNode next = part.contains("[") ? extractArrayIndex(node, part) : node.path(part);
         if (next == null || next.isMissingNode()) {
-            trace.add(part + " -> MISSING");
+            StringBuilder msg = new StringBuilder(part).append(" -> MISSING");
+            if (node.isObject()) {
+                List<String> keys = new ArrayList<>();
+                node.fieldNames().forEachRemaining(keys::add);
+                msg.append(" (Available keys: ").append(keys).append(")");
+            } else if (node.isArray()) {
+                msg.append(" (Node is an Array of size ").append(node.size()).append(")");
+            } else {
+                msg.append(" (Node is a Value: ").append(node.getNodeType()).append(")");
+            }
+            trace.add(msg.toString());
             return null;
         }
         trace.add(part + " -> FOUND (" + next.getNodeType() + ")");

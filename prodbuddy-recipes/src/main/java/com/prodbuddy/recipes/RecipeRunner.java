@@ -71,8 +71,8 @@ public final class RecipeRunner {
         mutableLocal.put("system.current_step_name", step.name());
 
         Map<String, Object> resolved = resolver.resolveAll(step.rawParams(), context, stepData, mutableLocal);
-        String tool = resolver.resolve(step.tool(), context, stepData, mutableLocal);
-        String operation = resolver.resolve(step.operation(), context, stepData, mutableLocal);
+        String tool = String.valueOf(resolver.resolve(step.tool(), context, stepData, mutableLocal));
+        String operation = String.valueOf(resolver.resolve(step.operation(), context, stepData, mutableLocal));
 
         if ("recipe".equals(tool) && "run".equals(operation)) {
             return runSubRecipe(step, resolved, context, executor,
@@ -125,7 +125,7 @@ public final class RecipeRunner {
             Map<String, ToolResponse> stepData,
             List<RecipeStepResult> results
     ) {
-        String rawItems = resolver.resolve(loopStep.foreach(), context, stepData);
+        String rawItems = String.valueOf(resolver.resolve(loopStep.foreach(), context, stepData));
         List<Object> items = parseList(rawItems);
         String as = loopStep.as().isEmpty() ? "item" : loopStep.as();
 
@@ -165,7 +165,7 @@ public final class RecipeRunner {
         if (rawCondition == null || rawCondition.isBlank()) {
             return true;
         }
-        String resolved = resolver.resolve(rawCondition, context, stepData, localVars);
+        String resolved = String.valueOf(resolver.resolve(rawCondition, context, stepData, localVars));
         return evaluator.evaluate(resolved);
     }
 

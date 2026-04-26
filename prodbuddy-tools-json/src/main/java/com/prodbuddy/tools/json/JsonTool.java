@@ -36,7 +36,7 @@ public final class JsonTool implements Tool {
     public ToolResponse execute(ToolRequest request, ToolContext context) throws ToolExecutionException {
         seqLog.logSequence("AgentLoopOrchestrator", NAME, "execute", "Evaluating JSON payload", 
                 styling().toMetadata());
-        String data = String.valueOf(request.payload().getOrDefault("data", ""));
+        String data = stripMarkdown(String.valueOf(request.payload().getOrDefault("data", "")));
         if (data.isBlank() || data.equals("null")) {
             return ToolResponse.failure("JSON_BAD_REQUEST", "data is required");
         }
@@ -112,5 +112,20 @@ public final class JsonTool implements Tool {
                 results.put(key, tr.node().isContainerNode() ? tr.node().toString() : tr.node().asText());
             }
         }
+    }
+    
+    private String stripMarkdown(String s) {
+        if (s == null || !s.contains("```")) return s;
+        String[] parts = s.split("```");
+        for (String part : parts) {
+            String trimmed = part.trim();
+            // Look for first chunk that looks like JSON after the code block marker
+            if (trimmed.startsWith("{") || trimmed.startsWith("[")) return trimmed;
+            if (trimmed.startsWith("json")) {
+                String nested = trimmed.substring(4).trim();
+                if (nested.startsWith("{") || nested.startsWith("[")) return nested;
+            }
+        }
+        return s;
     }
 }
