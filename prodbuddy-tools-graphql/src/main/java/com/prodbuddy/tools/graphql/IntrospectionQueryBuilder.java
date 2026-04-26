@@ -7,14 +7,20 @@ import java.util.Map;
 /** Utility for building GraphQL introspection queries. */
 public final class IntrospectionQueryBuilder {
 
+    /** Query service. */
     private final QueryService queryService;
 
+    /** Default constructor. */
     public IntrospectionQueryBuilder() {
         this(new QueryService());
     }
 
-    public IntrospectionQueryBuilder(QueryService queryService) {
-        this.queryService = queryService;
+    /**
+     * Constructor with custom QueryService.
+     * @param qs Query service.
+     */
+    public IntrospectionQueryBuilder(final QueryService qs) {
+        this.queryService = qs;
     }
 
     /**
@@ -23,11 +29,16 @@ public final class IntrospectionQueryBuilder {
      */
     public String getFullIntrospectionQuery() {
         if (queryService.exists("graphql/introspection_full.graphql")) {
-            return queryService.render("graphql/introspection_full.graphql", Map.of());
+            return queryService.render("graphql/introspection_full.graphql",
+                    Map.of());
         }
         return getFullIntrospectionQueryStatic();
     }
 
+    /**
+     * Gets static full introspection query.
+     * @return Query string.
+     */
     public static String getFullIntrospectionQueryStatic() {
         return """
         query IntrospectionQuery {
@@ -62,11 +73,16 @@ public final class IntrospectionQueryBuilder {
      */
     public String getOperationsSummaryQuery() {
         if (queryService.exists("graphql/operations_summary.graphql")) {
-            return queryService.render("graphql/operations_summary.graphql", Map.of());
+            return queryService.render("graphql/operations_summary.graphql",
+                    Map.of());
         }
         return getOperationsSummaryQueryStatic();
     }
 
+    /**
+     * Gets static operations summary query.
+     * @return Query string.
+     */
     public static String getOperationsSummaryQueryStatic() {
         return """
         {

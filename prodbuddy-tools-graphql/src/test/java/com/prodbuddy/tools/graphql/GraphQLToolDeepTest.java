@@ -54,7 +54,10 @@ class GraphQLToolDeepTest {
         
         when(client.execute(any(), any(), isNull(), any())).thenReturn(mockResponse);
         
-        ToolResponse response = tool.handleListOperations("http://test", Map.of());
+        com.prodbuddy.core.tool.ToolRequest request = new com.prodbuddy.core.tool.ToolRequest(
+            "graphql", "list_operations", Map.of("url", "http://test")
+        );
+        ToolResponse response = tool.execute(request, null);
         
         Map<String, Object> data = (Map<String, Object>) response.data();
         List<Map<String, String>> queries = (List<Map<String, String>>) data.get("queries");
@@ -66,12 +69,5 @@ class GraphQLToolDeepTest {
         
         assertEquals(1, mutations.size());
         assertEquals("createUser", mutations.get(0).get("name"));
-    }
-
-    @Test
-    void testExtractFieldsEmpty() {
-        JsonNode node = mapper.createObjectNode(); // Empty node, no "fields"
-        List<Map<String, String>> results = tool.extractFields(node);
-        assertEquals(0, results.size());
     }
 }

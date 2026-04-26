@@ -117,8 +117,8 @@ public final class RecipeLoader {
     private void handleIndentedLine(Object existing, String line, Map<String, Object> params, String key, boolean isBlock) {
         String stripped = line.stripLeading();
         int indent = line.indexOf(stripped), subSep = stripped.indexOf(':');
-        if ("steps".equals(key)) {
-            handleNestedList(params, key, stripped);
+        if (stripped.startsWith("- ") || "steps".equals(key)) {
+            handleGeneralList(params, key, stripped);
             return;
         }
         if (!isBlock && subSep > 0 && !stripped.substring(0, subSep).contains(" ")) {
@@ -129,6 +129,23 @@ public final class RecipeLoader {
             return;
         }
         if (existing instanceof String s) params.put(key, s + stripped + "\n");
+    }
+    @SuppressWarnings("unchecked")
+    private void handleGeneralList(Map<String, Object> params, String key, String line) {
+        Object existing = params.get(key);
+        List<Object> list = (existing instanceof List) ? (List<Object>) existing : new ArrayList<>();
+        if (!(existing instanceof List)) params.put(key, list);
+        String s = line.stripLeading();
+        boolean newItem = s.startsWith("- ");
+        String content = newItem ? s.substring(2).trim() : s;
+        if (content.contains(":") && !content.startsWith("\"")) {
+            int sep = content.indexOf(':');
+            Map<String, Object> lastMap = (newItem || list.isEmpty()) ? new LinkedHashMap<>() : (Map<String, Object>) list.get(list.size() - 1);
+            if (newItem || list.isEmpty()) list.add(lastMap);
+            lastMap.put(content.substring(0, sep).trim(), stripQuotes(content.substring(sep + 1).trim()));
+        } else {
+            list.add(stripQuotes(content));
+        }
     }
     @SuppressWarnings("unchecked")
     private Map<String, Object> getOrCreateParent(Map<String, Object> params, String key, int indent) {
@@ -149,34 +166,6 @@ public final class RecipeLoader {
             current = (Map<String, Object>) next;
         }
         return current;
-    }
-    @SuppressWarnings("unchecked")
-    private void handleNestedList(Map<String, Object> params, String key, String line) {
-        List<Map<String, Object>> list;
-        Object existing = params.get(key);
-        if (existing instanceof List) list = (List<Map<String, Object>>) existing;
-        else {
-            list = new ArrayList<>();
-            params.put(key, list);
-        }
-        String stripped = line.stripLeading();
-        boolean isNewItem = stripped.startsWith("- ");
-        String itemContent = isNewItem ? stripped.substring(2).trim() : stripped;
-        int sep = itemContent.indexOf(':');
-        if (sep > 0) {
-            Map<String, Object> lastMap = initListItem(list, isNewItem, itemContent);
-            if (lastMap != null) {
-                lastMap.put(itemContent.substring(0, sep).trim(), stripQuotes(itemContent.substring(sep + 1).trim()));
-            }
-        }
-    }
-    private Map<String, Object> initListItem(List<Map<String, Object>> list, boolean isNewItem, String itemContent) {
-        if (isNewItem && itemContent.startsWith("name:")) {
-            Map<String, Object> newMap = new LinkedHashMap<>();
-            list.add(newMap);
-            return newMap;
-        } else if (!list.isEmpty()) return list.get(list.size() - 1);
-        return null;
     }
     private List<RecipeStep> resolveInclusions(List<RecipeStep> steps, Path file) throws IOException {
         List<RecipeStep> resolved = new ArrayList<>();
