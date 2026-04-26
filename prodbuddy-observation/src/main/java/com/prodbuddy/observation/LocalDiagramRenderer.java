@@ -16,18 +16,25 @@ public final class LocalDiagramRenderer {
      * @return PNG bytes
      * @throws IOException if rendering fails
      */
-    public byte[] renderSequence(List<ObservationEvent> events) throws IOException {
+    public byte[] renderSequence(final List<ObservationEvent> events) throws IOException {
+        if (events == null || events.isEmpty()) {
+            return new byte[0];
+        }
+
+        // Limit to last 50 events for readability
+        List<ObservationEvent> limited = events.size() > 50 
+            ? events.subList(events.size() - 50, events.size()) : events;
+
         StringBuilder sb = new StringBuilder();
         sb.append("@startuml\n");
         sb.append("autonumber\n");
         sb.append("skinparam style strictuml\n");
-        sb.append("skinparam SequenceMessageAlignment center\n");
 
-        for (ObservationEvent event : events) {
-            String s = sanitize(event.getSender());
-            String r = sanitize(event.getReceiver());
-            String m = sanitize(event.getMethod());
-            String a = sanitize(event.getAction());
+        for (ObservationEvent event : limited) {
+            String s = sanitize(event.getSender(), 30);
+            String r = sanitize(event.getReceiver(), 30);
+            String m = sanitize(event.getMethod(), 50);
+            String a = sanitize(event.getAction(), 100);
 
             sb.append(s).append(" -> ").append(r).append(" : ").append(m);
             if (a != null && !a.isEmpty()) {
@@ -45,8 +52,17 @@ public final class LocalDiagramRenderer {
         }
     }
 
-    private String sanitize(String text) {
+    private String sanitize(final String text, final int maxLength) {
         if (text == null) return "unknown";
-        return text.replace("\"", "").replace("(", "").replace(")", "").replace("\n", " ").trim();
+        
+        // Remove characters that break PlantUML syntax
+        String cleaned = text.replaceAll("[^a-zA-Z0-9\\s._\\-:/]", " ")
+                             .replace("\n", " ")
+                             .trim();
+                             
+        if (cleaned.length() > maxLength) {
+            return cleaned.substring(0, maxLength - 3) + "...";
+        }
+        return cleaned;
     }
 }

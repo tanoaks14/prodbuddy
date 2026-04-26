@@ -12,20 +12,38 @@ public final class MermaidSequenceGenerator {
      * @param events The events to process
      * @return Mermaid syntax string
      */
-    public String generate(List<ObservationEvent> events) {
+    public String generate(final List<ObservationEvent> events) {
         if (events == null || events.isEmpty()) {
             return "%% No sequence events recorded";
         }
+
+        // Limit to first 200 events to prevent massive diagrams that fail to render
+        // Showing the start of the trace is usually more helpful for understanding flow
+        final int limit = 200;
+        boolean truncated = events.size() > limit;
+        List<ObservationEvent> limited = truncated ? events.subList(0, limit) : events;
 
         StringBuilder sb = new StringBuilder();
         sb.append("sequenceDiagram\n");
         sb.append("    autonumber\n");
 
-        for (ObservationEvent event : events) {
-            String s = sanitize(event.getSender());
-            String r = sanitize(event.getReceiver());
-            String m = sanitize(event.getMethod());
-            String a = sanitize(event.getAction());
+        // Declare participants to handle special characters/spaces in names
+        java.util.Set<String> actors = new java.util.HashSet<>();
+        for (ObservationEvent event : limited) {
+            actors.add(event.getSender());
+            actors.add(event.getReceiver());
+        }
+
+        for (String actor : actors) {
+            sb.append("    participant ").append(quote(actor))
+              .append(" as ").append(getSafeActorId(actor)).append("\n");
+        }
+
+        for (ObservationEvent event : limited) {
+            String s = getSafeActorId(event.getSender());
+            String r = getSafeActorId(event.getReceiver());
+            String m = sanitizeLabel(event.getMethod());
+            String a = sanitizeLabel(event.getAction());
 
             sb.append("    ").append(s).append("->>").append(r)
               .append(": ").append(m);
@@ -35,16 +53,48 @@ public final class MermaidSequenceGenerator {
             sb.append("\n");
         }
 
+        if (truncated) {
+            sb.append("    Note over ").append(getSafeActorId(limited.get(0).getSender()))
+              .append(", ").append(getSafeActorId(limited.get(limited.size() - 1).getReceiver()))
+              .append(": ... trace truncated after ").append(limit).append(" steps ...\n");
+        }
+
         return sb.toString();
     }
 
-    private String sanitize(String text) {
-        if (text == null) return "unknown";
-        // Remove characters that break mermaid syntax
-        return text.replace("\"", "")
-                   .replace("(", "[")
-                   .replace(")", "]")
-                   .replace("\n", " ")
+    private String getSafeActorId(final String name) {
+        if (name == null) return "unknown";
+        // Actor IDs must be alphanumeric
+        return "actor_" + name.replaceAll("[^a-zA-Z0-9]", "_");
+    }
+
+    private String quote(final String text) {
+        if (text == null) return "\"\"";
+        return "\"" + text.replace("\"", "'") + "\"";
+    }
+
+    private String sanitizeLabel(final String text) {
+        if (text == null) return "";
+        // Allow most characters but escape or remove those that definitely break Mermaid labels
+        return text.replace("\n", " ")
+                   .replace("\r", " ")
+                   .replace("->>", "->")
+                   .replace("\"", "'")
                    .trim();
+    }
+
+    private String sanitize(final String text, final int maxLength) {
+        if (text == null) return "unknown";
+        
+        // Keep for backward compatibility if needed, but we use sanitizeLabel/getSafeActorId now
+        String cleaned = text.replaceAll("[^a-zA-Z0-9\\s._\\-:/]", "")
+                             .replace("\n", " ")
+                             .replace("\r", " ")
+                             .trim();
+                             
+        if (cleaned.length() > maxLength) {
+            return cleaned.substring(0, maxLength - 3) + "...";
+        }
+        return cleaned;
     }
 }
