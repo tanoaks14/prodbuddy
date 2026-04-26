@@ -94,8 +94,12 @@ final class RecipeCliHandler {
         printRecipeSteps(result);
         Map<String, Object> summary = RecipeReport.summarize(result);
         printRecipeSummary(summary);
+        
+        String contextFilePath = name + "-context.md";
+        writeContextFile(contextFilePath, ContextFormatter.format(convCtx));
+
         if (recipe.analysis()) {
-            runRecipeLlm(name, summary, convCtx, agentConfig);
+            runRecipeLlm(name, summary, convCtx, agentConfig, contextFilePath);
         }
     }
 
@@ -129,7 +133,8 @@ final class RecipeCliHandler {
 
     private static void runRecipeLlm(
             String name, Map<String, Object> summary,
-            ConversationContext convCtx, com.prodbuddy.core.agent.AgentConfig config
+            ConversationContext convCtx, com.prodbuddy.core.agent.AgentConfig config,
+            String contextFilePath
     ) {
         if (!config.enabled() || !"ollama".equalsIgnoreCase(config.provider())) {
             seqLog.logSequence("RecipeCliHandler", "LLM", "runRecipeLlm", "Skipping LLM (Disabled)");
@@ -138,10 +143,6 @@ final class RecipeCliHandler {
         seqLog.logSequence("RecipeCliHandler", "LLM", "runRecipeLlm", "Requesting Recipe Analysis");
         String summaryText = String.valueOf(summary).replace('"', '\'');
         String contextText = ContextFormatter.format(convCtx);
-
-        // Write to markdown context file as requested
-        String contextFilePath = name + "-context.md";
-        writeContextFile(contextFilePath, contextText);
 
         String prompt = "You are a diagnostic AI assistant. Analyze the following recipe execution.\n"
                 + "Recipe: " + name + "\n"

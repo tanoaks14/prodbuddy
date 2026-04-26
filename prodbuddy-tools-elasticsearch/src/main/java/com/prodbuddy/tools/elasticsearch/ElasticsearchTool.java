@@ -138,6 +138,7 @@ public final class ElasticsearchTool implements Tool {
             int status = resp.statusCode();
             Map<String, String> rMeta = new java.util.HashMap<>(styling().toMetadata("Elasticsearch"));
             rMeta.put("style", status >= 400 ? "error" : "success");
+            rMeta.put("noteText", "HTTP " + status + "\n\n" + truncate(resp.body(), 2000));
             seqLog.logSequence("ElasticCluster", "Elasticsearch",
                     "executeRequest", "HTTP " + status, rMeta);
             final boolean trunc = resp.body() != null
