@@ -60,19 +60,28 @@ public final class LocalGraphDbService {
     }
 
     public Map<String, Object> query(Path dbPath, String sql, int maxRows) {
-        if (!isReadOnly(sql)) {
-            return Map.of("error", "Only SELECT queries are allowed");
-        }
-        String jdbcUrl = "jdbc:h2:file:" + dbPath.toAbsolutePath();
-        try (Connection connection = DriverManager.getConnection(jdbcUrl); Statement statement = connection.createStatement(); ResultSet result = statement.executeQuery(sql)) {
+        validateQuery(sql);
+        String jdbcUrl = "jdbc:h2:file:" + dbPath.toAbsolutePath() + ";ACCESS_MODE_DATA=r";
+        try (Connection connection = DriverManager.getConnection(jdbcUrl);
+             Statement statement = connection.createStatement();
+             ResultSet result = statement.executeQuery(sql)) {
             return Map.of("rows", rows(result, maxRows), "dbPath", dbPath.toAbsolutePath().toString());
         } catch (Exception exception) {
             throw new IllegalStateException("Unable to query local graph DB", exception);
         }
     }
 
-    private boolean isReadOnly(String sql) {
-        return sql != null && sql.trim().toLowerCase().startsWith("select");
+    private void validateQuery(String sql) {
+        if (sql == null || sql.isBlank()) {
+            throw new IllegalArgumentException("Query cannot be empty");
+        }
+        String trimmed = sql.trim().toLowerCase();
+        if (!trimmed.startsWith("select")) {
+            throw new IllegalArgumentException("Only SELECT queries are allowed");
+        }
+        if (trimmed.contains(";") || trimmed.contains("--") || trimmed.contains("/*")) {
+            throw new IllegalArgumentException("Dangerous characters or multiple statements detected in query");
+        }
     }
 
     private void ensureParentExists(Path dbPath) {

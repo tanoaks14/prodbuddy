@@ -19,10 +19,6 @@ public final class NewRelicTool implements Tool {
     private final QueryService queryService;
     private final SequenceLogger seqLog;
 
-    public NewRelicTool(final NewRelicScenarioCatalog catalog) {
-        this(catalog, new Slf4jSequenceLogger(NewRelicTool.class));
-    }
-
     public NewRelicTool(final NewRelicScenarioCatalog catalog,
                         final SequenceLogger seqLog) {
         this.seqLog = seqLog;
@@ -32,21 +28,6 @@ public final class NewRelicTool implements Tool {
         this.client = new NrqlGraphQLClient(seqLog, styling());
         this.queryService = new QueryService();
         this.dataService = new DashboardDataService(client, seqLog);
-    }
-
-    public NewRelicTool(final NewRelicScenarioCatalog c,
-                        final NrqlQueryBuilder b,
-                        final NrqlQueryValidator v,
-                        final NrqlGraphQLClient cl,
-                        final QueryService qs,
-                        final SequenceLogger log) {
-        this.catalog = c;
-        this.queryBuilder = b;
-        this.validator = v;
-        this.client = cl;
-        this.queryService = qs;
-        this.seqLog = log;
-        this.dataService = new DashboardDataService(cl, log);
     }
 
     @Override

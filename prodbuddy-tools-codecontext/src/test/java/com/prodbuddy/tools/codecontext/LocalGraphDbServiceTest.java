@@ -33,9 +33,10 @@ class LocalGraphDbServiceTest {
         LocalGraphDbService service = new LocalGraphDbService();
         service.build(dbPath, snapshot("A"));
 
-        Map<String, Object> result = service.query(dbPath, "DELETE FROM ClassNode", 10);
-
-        Assertions.assertEquals("Only SELECT queries are allowed", result.get("error"));
+        Assertions.assertThrows(
+                IllegalArgumentException.class,
+                () -> service.query(dbPath, "DELETE FROM ClassNode", 10)
+        );
     }
 
     @Test
@@ -110,6 +111,33 @@ class LocalGraphDbServiceTest {
         Assertions.assertThrows(
                 IllegalStateException.class,
                 () -> service.query(dbPath, "SELECT * FROM MissingTable", 10)
+        );
+    }
+
+    @Test
+    void shouldPreventSqlInjection() throws IOException {
+        Path temp = Files.createTempDirectory("graphdb-injection");
+        Path dbPath = temp.resolve("graph");
+        LocalGraphDbService service = new LocalGraphDbService();
+        service.build(dbPath, snapshot("A"));
+
+        // Attempting to bypass SELECT check or use dangerous functions
+        Assertions.assertThrows(
+                IllegalArgumentException.class,
+                () -> service.query(dbPath, "SELECT * FROM ClassNode; DROP TABLE ClassNode", 10)
+        );
+    }
+
+    @Test
+    void shouldRejectQueriesWithSemicolons() throws IOException {
+        Path temp = Files.createTempDirectory("graphdb-semicolon");
+        Path dbPath = temp.resolve("graph");
+        LocalGraphDbService service = new LocalGraphDbService();
+        service.build(dbPath, snapshot("A"));
+
+        Assertions.assertThrows(
+                IllegalArgumentException.class,
+                () -> service.query(dbPath, "SELECT * FROM ClassNode; --", 10)
         );
     }
 

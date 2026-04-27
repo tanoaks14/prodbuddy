@@ -21,9 +21,19 @@ public final class RecipeRunner {
 
     private final RecipeVarResolver resolver = new RecipeVarResolver();
     private final LogicEvaluator evaluator = new LogicEvaluator();
-    private final SequenceLogger seqLog = com.prodbuddy.observation.ObservationContext.getLogger();
+    private final SequenceLogger seqLog =
+            com.prodbuddy.observation.ObservationContext.getLogger();
+    /** Registry of available recipes. */
     private RecipeRegistry registry;
 
+    /**
+     * Executes the given recipe.
+     * @param recipe the recipe definition
+     * @param fullRecipeContent the raw content
+     * @param context the tool context
+     * @param executor the tool executor
+     * @return the run result
+     */
     public RecipeRunResult run(
             final RecipeDefinition recipe,
             final String fullRecipeContent,
@@ -32,47 +42,67 @@ public final class RecipeRunner {
     ) {
         this.registry = RecipeRegistry.loadFrom(java.nio.file.Path.of(
                 context.envOrDefault("RECIPES_DIR", "recipes")));
-        seqLog.logSequence("RecipeCliHandler", "RecipeRunner", "run", "🚀 Running recipe: " + recipe.name());
+        seqLog.logSequence("RecipeCliHandler", "RecipeRunner", "run",
+                "🚀 Running recipe: " + recipe.name());
         Map<String, ToolResponse> stepData = new LinkedHashMap<>();
         List<RecipeStepResult> results = new ArrayList<>();
         for (RecipeStep step : recipe.steps()) {
-            seqLog.logSequence("RecipeRunner", "Orchestrator", "runStep", "⚡ Step: " + step.name());
-
-            if (!step.foreach().isEmpty()) {
-                boolean cont = executeLoop(step, fullRecipeContent, context, executor, stepData, results);
-                if (!cont) break;
-                continue;
+            if (!processSingleStep(step, fullRecipeContent, context,
+                    executor, stepData, results)) {
+                break;
             }
-
-            if (!shouldRun(step, context, stepData, Map.of())) {
-                seqLog.logSequence("RecipeRunner", "Orchestrator", "skipStep", "⏭️ Skipping step " + step.name());
-                continue;
-            }
-
-            RecipeStepResult result = runStep(step, context, executor, stepData, Map.of(), fullRecipeContent);
-            results.add(result);
-            seqLog.logSequence("Orchestrator", "RecipeRunner", "runStep", "✅ Result: " + result.response().success());
-            stepData.put(step.name(), result.response());
         }
-        seqLog.logSequence("RecipeRunner", "RecipeCliHandler", "run", "🏁 Recipe complete");
+        seqLog.logSequence("RecipeRunner", "RecipeCliHandler", "run",
+                "🏁 Recipe complete");
         return new RecipeRunResult(recipe.name(), results);
     }
 
+    private boolean processSingleStep(
+            final RecipeStep step,
+            final String fullRecipeContent,
+            final ToolContext context,
+            final RecipeToolExecutor executor,
+            final Map<String, ToolResponse> stepData,
+            final List<RecipeStepResult> results
+    ) {
+        seqLog.logSequence("RecipeRunner", "Orchestrator", "runStep",
+                "⚡ Step: " + step.name());
+        if (!step.foreach().isEmpty()) {
+            return executeLoop(step, fullRecipeContent, context,
+                    executor, stepData, results);
+        }
+        if (!shouldRun(step, context, stepData, Map.of())) {
+            seqLog.logSequence("RecipeRunner", "Orchestrator", "skipStep",
+                    "⏭️ Skipping step " + step.name());
+            return true;
+        }
+        RecipeStepResult result = runStep(step, context, executor, stepData,
+                Map.of(), fullRecipeContent);
+        results.add(result);
+        seqLog.logSequence("Orchestrator", "RecipeRunner", "runStep",
+                "✅ Result: " + result.response().success());
+        stepData.put(step.name(), result.response());
+        return true;
+    }
+
     private RecipeStepResult runStep(
-            RecipeStep step,
-            ToolContext context,
-            RecipeToolExecutor executor,
-            Map<String, ToolResponse> stepData,
-            Map<String, Object> localVars,
-            String fullRecipeContent
+            final RecipeStep step,
+            final ToolContext context,
+            final RecipeToolExecutor executor,
+            final Map<String, ToolResponse> stepData,
+            final Map<String, Object> localVars,
+            final String fullRecipeContent
     ) {
         Map<String, Object> mutableLocal = new java.util.HashMap<>(localVars);
         mutableLocal.put("system.current_recipe", fullRecipeContent);
         mutableLocal.put("system.current_step_name", step.name());
 
-        Map<String, Object> resolved = resolver.resolveAll(step.rawParams(), context, stepData, mutableLocal);
-        String tool = String.valueOf(resolver.resolve(step.tool(), context, stepData, mutableLocal));
-        String operation = String.valueOf(resolver.resolve(step.operation(), context, stepData, mutableLocal));
+        Map<String, Object> resolved = resolver.resolveAll(step.rawParams(),
+                context, stepData, mutableLocal);
+        String tool = String.valueOf(resolver.resolve(step.tool(),
+                context, stepData, mutableLocal));
+        String operation = String.valueOf(resolver.resolve(step.operation(),
+                context, stepData, mutableLocal));
 
         if ("recipe".equals(tool) && "run".equals(operation)) {
             return runSubRecipe(step, resolved, context, executor,
@@ -81,7 +111,8 @@ public final class RecipeRunner {
 
         ToolRequest request = buildRequest(tool, operation, resolved);
         ToolResponse response = safeExecute(executor, request, context);
-        return new RecipeStepResult(step.name(), tool, operation, resolved, response);
+        return new RecipeStepResult(step.name(), tool, operation, resolved,
+                response);
     }
 
     private RecipeStepResult runSubRecipe(
@@ -99,60 +130,105 @@ public final class RecipeRunner {
                     ToolResponse.failure("RECIPE_NOT_FOUND", subName));
         }
 
-        seqLog.logSequence("RecipeRunner", "SubRecipe", "run", "Entering: " + subName);
-        List<RecipeStepResult> subResults = new ArrayList<>();
-        for (RecipeStep subStep : sub.steps()) {
-            if (!shouldRun(subStep, context, stepData, localVars)) {
-                continue;
-            }
-            RecipeStepResult res = runStep(subStep, context, executor,
-                    stepData, localVars, "");
-            subResults.add(res);
-            stepData.put(subStep.name(), res.response());
-        }
-        seqLog.logSequence("SubRecipe", "RecipeRunner", "run", "Exited: " + subName);
+        seqLog.logSequence("RecipeRunner", "SubRecipe", "run",
+                "Entering: " + subName);
+
+        // IMPROVEMENT: Parameters passed to 'recipe.run' are available as
+        // local variables in the sub-recipe
+        Map<String, Object> subLocalVars = new java.util.HashMap<>(localVars);
+        subLocalVars.putAll(resolved);
+
+        List<RecipeStepResult> subResults = executeSubSteps(sub, context,
+                executor, stepData, subLocalVars);
+
+        seqLog.logSequence("SubRecipe", "RecipeRunner", "run",
+                "Exited: " + subName);
 
         return new RecipeStepResult(step.name(), "recipe", "run", resolved,
                 ToolResponse.ok(Map.of("sub_recipe", subName,
                         "steps_executed", subResults.size())));
     }
 
-    private boolean executeLoop(
-            RecipeStep loopStep,
-            String fullRecipeContent,
-            ToolContext context,
-            RecipeToolExecutor executor,
-            Map<String, ToolResponse> stepData,
-            List<RecipeStepResult> results
+    private List<RecipeStepResult> executeSubSteps(
+            final RecipeDefinition sub,
+            final ToolContext context,
+            final RecipeToolExecutor executor,
+            final Map<String, ToolResponse> stepData,
+            final Map<String, Object> localVars
     ) {
-        String rawItems = String.valueOf(resolver.resolve(loopStep.foreach(), context, stepData));
-        List<Object> items = parseList(rawItems);
+        List<RecipeStepResult> subResults = new ArrayList<>();
+        for (RecipeStep subStep : sub.steps()) {
+            if (shouldRun(subStep, context, stepData, localVars)) {
+                RecipeStepResult res = runStep(subStep, context, executor,
+                        stepData, localVars, "");
+                subResults.add(res);
+                stepData.put(subStep.name(), res.response());
+            }
+        }
+        return subResults;
+    }
+
+    private boolean executeLoop(
+            final RecipeStep loopStep,
+            final String fullRecipeContent,
+            final ToolContext context,
+            final RecipeToolExecutor executor,
+            final Map<String, ToolResponse> stepData,
+            final List<RecipeStepResult> results
+    ) {
+        Object res = resolver.resolve(loopStep.foreach(), context, stepData,
+                Map.of());
+        List<Object> items;
+        if (res instanceof List list) {
+            items = list;
+        } else {
+            items = parseList(String.valueOf(res));
+        }
         String as = loopStep.as().isEmpty() ? "item" : loopStep.as();
 
         int i = 0;
         for (Object item : items) {
-            Map<String, Object> localVars = Map.of(as, item);
-            for (RecipeStep nested : loopStep.nestedSteps()) {
-                if (!shouldRun(nested, context, stepData, localVars)) continue;
-
-                RecipeStepResult res = runStep(nested, context, executor, stepData, localVars, fullRecipeContent);
-                results.add(res);
-
-                // Index-based result aggregation for safety
-                String storageKey = nested.name() + "_" + i;
-                stepData.put(storageKey, res.response());
-
-                if (loopStep.stopOnFailure() && !res.response().success()) {
-                    seqLog.logSequence("RecipeRunner", "Orchestrator", "loopAbort", "Aborting loop " + loopStep.name() + " due to failure in " + nested.name());
-                    return false;
-                }
+            if (!executeIteration(loopStep, fullRecipeContent, context,
+                    executor, stepData, results, item, i)) {
+                return false;
             }
             i++;
         }
         return true;
     }
 
-    private List<Object> parseList(String raw) {
+    private boolean executeIteration(
+            final RecipeStep loopStep,
+            final String fullRecipeContent,
+            final ToolContext context,
+            final RecipeToolExecutor executor,
+            final Map<String, ToolResponse> stepData,
+            final List<RecipeStepResult> results,
+            final Object item,
+            final int index
+    ) {
+        String as = loopStep.as().isEmpty() ? "item" : loopStep.as();
+        Map<String, Object> localVars = Map.of(as, item);
+        for (RecipeStep nested : loopStep.nestedSteps()) {
+            if (!shouldRun(nested, context, stepData, localVars)) {
+                continue;
+            }
+            RecipeStepResult loopRes = runStep(nested, context, executor,
+                    stepData, localVars, fullRecipeContent);
+            results.add(loopRes);
+            stepData.put(nested.name() + "_" + index, loopRes.response());
+
+            if (loopStep.stopOnFailure() && !loopRes.response().success()) {
+                seqLog.logSequence("RecipeRunner", "Orchestrator",
+                        "loopAbort", "Aborting loop " + loopStep.name()
+                                + " due to failure in " + nested.name());
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private List<Object> parseList(final String raw) {
         if (raw == null || raw.isBlank()) {
             return java.util.List.of();
         }
@@ -160,22 +236,29 @@ public final class RecipeRunner {
         return java.util.Arrays.asList((Object[]) raw.split(","));
     }
 
-    private boolean shouldRun(RecipeStep step, ToolContext context, Map<String, ToolResponse> stepData, Map<String, Object> localVars) {
+    private boolean shouldRun(final RecipeStep step,
+                              final ToolContext context,
+                              final Map<String, ToolResponse> stepData,
+                              final Map<String, Object> localVars) {
         String rawCondition = step.condition();
         if (rawCondition == null || rawCondition.isBlank()) {
             return true;
         }
-        String resolved = String.valueOf(resolver.resolve(rawCondition, context, stepData, localVars));
-        return evaluator.evaluate(resolved);
+        String res = String.valueOf(resolver.resolve(rawCondition,
+                context, stepData, localVars));
+        return evaluator.evaluate(res);
     }
 
-    private ToolRequest buildRequest(String tool, String operation, Map<String, Object> params) {
+    private ToolRequest buildRequest(final String tool, final String operation,
+                                     final Map<String, Object> params) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.putAll(params);
         return new ToolRequest(tool, operation, payload);
     }
 
-    private ToolResponse safeExecute(RecipeToolExecutor executor, ToolRequest request, ToolContext context) {
+    private ToolResponse safeExecute(final RecipeToolExecutor executor,
+                                     final ToolRequest request,
+                                     final ToolContext context) {
         try {
             return executor.execute(request, context);
         } catch (Exception ex) {

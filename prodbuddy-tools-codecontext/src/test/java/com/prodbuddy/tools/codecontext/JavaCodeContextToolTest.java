@@ -174,8 +174,8 @@ class JavaCodeContextToolTest {
                 new ToolContext("11", Map.of(), null)
         );
 
-        Assertions.assertTrue(response.success());
-        Assertions.assertEquals("query must be provided", response.data().get("error"));
+        Assertions.assertFalse(response.success());
+        Assertions.assertEquals("MISSING_QUERY", response.errors().get(0).code());
     }
 
     @Test

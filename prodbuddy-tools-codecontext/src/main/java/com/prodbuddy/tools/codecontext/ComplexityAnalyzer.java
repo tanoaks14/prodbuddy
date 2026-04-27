@@ -29,9 +29,6 @@ public final class ComplexityAnalyzer {
     }
 
     /** Convenience with default top N. */
-    public Map<String, Object> heatmap(Path dbPath) {
-        return heatmap(dbPath, DEFAULT_TOP_N);
-    }
 
     private int countByRisk(List<Map<String, Object>> rows, int threshold) {
         return (int) rows.stream()

@@ -155,6 +155,7 @@ public final class AgentTool implements Tool {
             
             seqLog.logSequence("Agent", "AgentLoopOrchestrator", "think", opinion, meta);
             return ToolResponse.ok(Map.of("opinion", opinion,
+                     "result", opinion,
                      "status", "analyzed"));
         } catch (Exception e) {
             return ToolResponse.failure("LLM_ERROR",

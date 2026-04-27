@@ -36,35 +36,6 @@ public final class JsonAnalyzer {
         }
     }
 
-    public Map<String, Object> extract(String jsonStr, Map<String, String> paths, Map<String, String> regexList) {
-        Map<String, Object> results = new java.util.HashMap<>();
-        if (paths != null) {
-            for (Map.Entry<String, String> entry : paths.entrySet()) {
-                TraceResult tr = walkWithTrace(jsonStr, entry.getValue());
-                if (tr.node() != null && !tr.node().isMissingNode()) {
-                    results.put(entry.getKey(), tr.node().isContainerNode() ? tr.node().toString() : tr.node().asText());
-                }
-            }
-        }
-        if (regexList != null) {
-            extractRegex(jsonStr, regexList, results);
-        }
-        return results;
-    }
-
-    private void extractRegex(String content, Map<String, String> regexList, Map<String, Object> results) {
-        for (Map.Entry<String, String> entry : regexList.entrySet()) {
-            java.util.regex.Pattern p = java.util.regex.Pattern.compile(entry.getValue());
-            java.util.regex.Matcher m = p.matcher(content);
-            List<String> matches = new ArrayList<>();
-            while (m.find()) {
-                matches.add(m.groupCount() > 0 ? m.group(1) : m.group());
-            }
-            if (!matches.isEmpty()) {
-                results.put(entry.getKey(), String.join(",", matches));
-            }
-        }
-    }
 
     private void traverse(JsonNode node, String currentPath, String targetKey, List<String> result) {
         if (node.isObject()) {
@@ -84,12 +55,6 @@ public final class JsonAnalyzer {
         }
     }
 
-    /**
-     * Walk the JSON tree and return result with trace.
-     * @param jsonStr raw JSON
-     * @param path dot path
-     * @return result with trace
-     */
     /**
      * Walk the JSON tree and return result with trace.
      * @param jsonStr raw JSON

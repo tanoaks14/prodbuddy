@@ -52,6 +52,25 @@ public final class LocalGraphQueries {
         }
     }
 
+    /** Find MethodNode ID by file path and line number. */
+    public String findMethodIdByLocation(final Path dbPath, final String filePath, final int line) {
+        String url = "jdbc:h2:file:" + dbPath.toAbsolutePath();
+        String sql = "SELECT id FROM MethodNode WHERE filePath = ? AND ? BETWEEN startLine AND endLine LIMIT 1";
+        try (Connection con = DriverManager.getConnection(url);
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setString(1, filePath);
+            ps.setInt(2, line);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getString(1);
+                }
+            }
+        } catch (Exception ex) {
+            // Ignore
+        }
+        return null;
+    }
+
     /** Find detailed MethodNode by its ID. */
     public GraphMethodNode getMethodNode(final Path dbPath, final String methodId) {
         String url = "jdbc:h2:file:" + dbPath.toAbsolutePath();

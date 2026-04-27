@@ -1,0 +1,121 @@
+query DeepDiagnostic(
+  $continent1: ID!,
+  $continent2: ID!,
+  $country1: ID!,
+  $country2: ID!,
+  $country3: ID!,
+  $lang1: ID!,
+  $lang2: ID!,
+  $lang3: ID!,
+  $currFilter: String,
+  $contFilter: String,
+  $codeFilter: String
+) {
+  # Level 1: Primary continent with deep nesting
+  primaryContinent: continent(code: $continent1) {
+    code
+    name
+    # Level 2: Countries in continent
+    countries {
+      code
+      name
+      currency
+      phone
+      # Level 3: Languages spoken
+      languages {
+        code
+        name
+        native
+      }
+      # Level 3: States/subdivisions
+      states {
+        code
+        name
+        # Level 4: Country back-reference
+        country {
+          code
+          name
+          capital
+          # Level 5: Deep continent verification
+          continent {
+            code
+            name
+          }
+        }
+      }
+    }
+  }
+
+  # Level 1: Secondary continent (alias)
+  secondaryContinent: continent(code: $continent2) {
+    code
+    name
+    countries {
+      code
+      name
+      emoji
+    }
+  }
+
+  # Level 1: Direct country lookups (3 aliases)
+  countryAlpha: country(code: $country1) {
+    code
+    name
+    capital
+    currency
+    continent { code name }
+    languages { code name native }
+    states { code name }
+  }
+
+  countryBeta: country(code: $country2) {
+    code
+    name
+    capital
+    currency
+    languages { code name }
+  }
+
+  countryGamma: country(code: $country3) {
+    code
+    name
+    emoji
+    languages { code name native rtl }
+  }
+
+  # Level 1: Filtered country searches
+  byCurrency: countries(filter: { currency: { eq: $currFilter }, continent: { eq: $contFilter } }) {
+    code
+    name
+    emoji
+    currency
+  }
+
+  byCode: countries(filter: { code: { eq: $codeFilter } }) {
+    code
+    name
+    capital
+    languages { code name }
+  }
+
+  # Level 1: Language lookups (3 aliases)
+  langAlpha: language(code: $lang1) {
+    code
+    name
+    native
+    rtl
+  }
+
+  langBeta: language(code: $lang2) {
+    code
+    name
+    native
+  }
+
+  langGamma: language(code: $lang3) {
+    code
+    name
+    native
+    rtl
+  }
+}

@@ -116,8 +116,19 @@ public final class RecipeVarResolver {
         return resolveStepPath(stepName, path, stepResults);
     }
 
-    private Object resolveStepPath(String stepName, String path, Map<String, ToolResponse> stepResults) {
-        ToolResponse response = stepResults.get(stepName);
+    private Object resolveStepPath(final String stepName,
+                                   final String path,
+                                   final Map<String, ToolResponse> stepResults) {
+        String stepKey = stepName;
+        if (!stepResults.containsKey(stepKey)) {
+            // Support shortened step names (e.g. "Step 2" matches "Step 2: Extract")
+            stepKey = stepResults.keySet().stream()
+                    .filter(k -> k.startsWith(stepName))
+                    .findFirst()
+                    .orElse(stepName);
+        }
+
+        ToolResponse response = stepResults.get(stepKey);
         if (response == null) {
             return "${" + stepName + "." + path + "}";
         }
@@ -165,6 +176,15 @@ public final class RecipeVarResolver {
         if (node == null || path.isBlank()) {
             return node;
         }
+
+        // SMART DIVING: If the current node is a JSON string, parse it before walking deeper.
+        if (node instanceof String s && (s.trim().startsWith("{") || s.trim().startsWith("["))) {
+            Object parsed = tryParseJson(s);
+            if (parsed != null) {
+                node = parsed;
+            }
+        }
+
         String[] segments = path.split("\\.", 2);
         String head = segments[0];
         String rest = segments.length > 1 ? segments[1] : "";
@@ -181,6 +201,19 @@ public final class RecipeVarResolver {
         }
         Object child = ((Map<String, Object>) node).get(key);
         return rest.isBlank() ? child : walkPath(child, rest);
+    }
+
+    private Object tryParseJson(String s) {
+        try {
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            if (s.trim().startsWith("{")) {
+                return mapper.readValue(s, Map.class);
+            } else {
+                return mapper.readValue(s, List.class);
+            }
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private Object navigateIndex(Object node, String segment, String rest) {

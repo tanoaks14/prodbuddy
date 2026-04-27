@@ -48,21 +48,17 @@ public final class SplunkTool implements Tool {
     private final SequenceLogger seqLog;
 
     public SplunkTool(final SplunkOperationGuard operationGuard) {
-        this(operationGuard, SplunkHttpClientFactory.buildInsecure(), new QueryService());
+        this(operationGuard, SplunkHttpClientFactory.buildInsecure());
     }
 
-    protected SplunkTool(final SplunkOperationGuard operationGuard,
-                         final HttpClient httpClient, final QueryService qs) {
+    protected SplunkTool(final SplunkOperationGuard operationGuard, final HttpClient httpClient) {
         this.guard = operationGuard;
-        this.queryService = qs;
-        this.queryBuilder = new SplunkQueryBuilder(qs);
+        this.queryService = new QueryService();
+        this.queryBuilder = new SplunkQueryBuilder(this.queryService);
         this.client = httpClient;
         this.seqLog = com.prodbuddy.observation.ObservationContext.getLogger();
     }
 
-    protected SplunkTool(final SplunkOperationGuard operationGuard, final HttpClient httpClient) {
-        this(operationGuard, httpClient, new QueryService());
-    }
 
     @Override
     public ToolMetadata metadata() {
@@ -103,31 +99,6 @@ public final class SplunkTool implements Tool {
         }
 
         return performOperation(request, context, baseUrl, op);
-    }
-
-    private ToolResponse handleExecute(final ToolRequest request,
-                                       final ToolContext context) {
-        String base = SplunkToolHelper.resolveValue(request, context,
-                "baseUrl", "SPLUNK_BASE_URL");
-        if (base == null || base.isBlank()) {
-            return ToolResponse.failure("SPLUNK_BASE_URL", "base required");
-        }
-        String op = String.valueOf(request.payload().getOrDefault("operation",
-                "search/jobs"));
-        String search = queryBuilder.resolveSearch(request, context);
-        String path = "servicesNS/-/-/" + op;
-        boolean authEnabled = SplunkAuthHelper.resolveAuthEnabled(request,
-                context);
-        String authMode = SplunkAuthHelper.resolveAuthMode(request, context,
-                MODE_TOKEN);
-        String auth = authEnabled ? resolveValidAuthHeaderOrThrow(request,
-                context, base) : null;
-        String method = "search/jobs/export".equals(op) ? "GET" : "POST";
-        String body = "search=" + URLEncoder.encode(search,
-                StandardCharsets.UTF_8);
-        HttpRequest req = buildRequest(base, path, body, auth, authMode,
-                method, request.payload());
-        return send(req, op, search, path, authMode, request, context);
     }
 
     ToolResponse performOperation(final ToolRequest request,

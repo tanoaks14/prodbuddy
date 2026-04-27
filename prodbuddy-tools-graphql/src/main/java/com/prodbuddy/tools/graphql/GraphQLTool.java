@@ -204,14 +204,20 @@ public final class GraphQLTool implements Tool {
     }
 
     private String resolveQuery(final Object raw) {
-        if (raw == null) return "";
+        if (raw == null) {
+            return "";
+        }
         List<String> lines = new ArrayList<>();
         if (raw instanceof List<?> list) {
-            for (Object line : list) lines.add(String.valueOf(line).trim());
+            for (Object line : list) {
+                lines.add(String.valueOf(line).trim());
+            }
         } else {
             for (String line : String.valueOf(raw).split("\n")) {
                 String trimmed = line.trim();
-                if (!trimmed.isEmpty()) lines.add(trimmed);
+                if (!trimmed.isEmpty()) {
+                    lines.add(trimmed);
+                }
             }
         }
         return String.join("\n", lines);

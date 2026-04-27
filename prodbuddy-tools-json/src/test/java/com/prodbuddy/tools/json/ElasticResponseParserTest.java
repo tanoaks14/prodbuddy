@@ -37,8 +37,9 @@ public class ElasticResponseParserTest {
             "location", "hits.hits[0]._source.kel_location"
         );
         
-        Map<String, Object> results = analyzer.extract(elasticResponse, paths, null);
+        JsonAnalyzer.TraceResult tr = analyzer.walkWithTrace(elasticResponse, paths.get("location"));
+        String result = tr.node() != null ? tr.node().asText() : null;
         
-        assertEquals("/app/data/keys/prod.pem", results.get("location"));
+        assertEquals("/app/data/keys/prod.pem", result);
     }
 }

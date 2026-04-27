@@ -20,7 +20,7 @@ public final class JavaCodeContextTool implements Tool {
     private final ComplexityAnalyzer complexityAnalyzer;
     private final CallChainService callChainService;
     private final ToolRecommendationService recommendationService;
-    private final IncidentAnalysisService analysisService;
+    private final IncidentDiagnosticService diagnosticService;
     private final SequenceLogger seqLog;
 
     public JavaCodeContextTool(
@@ -39,7 +39,11 @@ public final class JavaCodeContextTool implements Tool {
                 new ComplexityAnalyzer(new LocalGraphQueries()),
                 new CallChainService(new LocalGraphQueries()),
                 new ToolRecommendationService(),
-                new IncidentAnalysisService()
+                new IncidentDiagnosticService(
+                        new CallChainService(new LocalGraphQueries()),
+                        new LocalGitService(),
+                        new LocalGraphQueries()
+                )
         );
     }
 
@@ -53,7 +57,7 @@ public final class JavaCodeContextTool implements Tool {
             ComplexityAnalyzer complexityAnalyzer,
             CallChainService callChainService,
             ToolRecommendationService recommendationService,
-            IncidentAnalysisService analysisService
+            IncidentDiagnosticService diagnosticService
     ) {
         this.summaryService = summaryService;
         this.searchService = searchService;
@@ -64,7 +68,7 @@ public final class JavaCodeContextTool implements Tool {
         this.complexityAnalyzer = complexityAnalyzer;
         this.callChainService = callChainService;
         this.recommendationService = recommendationService;
-        this.analysisService = analysisService;
+        this.diagnosticService = diagnosticService;
         this.seqLog = com.prodbuddy.observation.ObservationContext.getLogger();
     }
 
@@ -126,8 +130,8 @@ public final class JavaCodeContextTool implements Tool {
             case "summary" -> ToolResponse.ok(summaryService.summarize(projectPath));
             case "search" -> ToolResponse.ok(Map.of("matches", search(projectPath, payload, context)));
             case "p1_context" -> ToolResponse.ok(p1Context(projectPath, payload, context));
-            case "context_from_query" -> ToolResponse.ok(contextFromQuery(projectPath, payload, context));
-            case "incident_report" -> ToolResponse.ok(incidentReport(projectPath, payload, context));
+            case "context_from_query" -> contextFromQuery(projectPath, payload, context);
+            case "incident_report" -> incidentReport(projectPath, payload, context);
             default -> null;
         };
     }
@@ -137,9 +141,10 @@ public final class JavaCodeContextTool implements Tool {
             case "p1_tool_calls" -> ToolResponse.ok(recommendationService.p1ToolCalls(projectPath(payload),
                     dbPath(payload, ctx), String.valueOf(payload.getOrDefault("symptom", "error"))));
             case "dead_code" -> ToolResponse.ok(deadCodeDetector.detect(dbPath(payload, ctx)).toMap());
-            case "change_impact" -> ToolResponse.ok(changeImpact(payload, ctx));
-            case "complexity_report" -> ToolResponse.ok(complexityReport(payload, ctx));
-            case "call_chain" -> ToolResponse.ok(callChain(payload, ctx));
+            case "change_impact" -> changeImpact(payload, ctx);
+            case "complexity_report" -> ToolResponse.ok(complexityAnalyzer.heatmap(dbPath(payload, ctx),
+                    Integer.parseInt(String.valueOf(payload.getOrDefault("topN", "20")))));
+            case "call_chain" -> callChain(payload, ctx);
             default -> null;
         };
     }
@@ -196,28 +201,28 @@ public final class JavaCodeContextTool implements Tool {
         return graphDbService.query(dbPath, sql, maxRows);
     }
 
-    private Map<String, Object> contextFromQuery(final Path projectPath,
-                                                 final Map<String, Object> payload,
-                                                 final ToolContext context) {
+    private ToolResponse contextFromQuery(final Path projectPath,
+                                         final Map<String, Object> payload,
+                                         final ToolContext context) {
         String query = String.valueOf(payload.getOrDefault("query", "")).trim();
         if (query.isBlank()) {
-            return Map.of("error", "query must be provided");
+            return ToolResponse.failure("MISSING_QUERY", "query must be provided");
         }
         int max = Integer.parseInt(context.envOrDefault("CODE_CONTEXT_MAX_RESULTS", "20"));
-        return analysisService.analyze(projectPath, dbPath(payload, context), query, max,
-                new CodeContextRetrievalFacade(searchService, graphDbService), recommendationService);
+        return ToolResponse.ok(diagnosticService.analyze(projectPath, dbPath(payload, context), query, max,
+                new CodeContextRetrievalFacade(searchService, graphDbService), recommendationService));
     }
 
-    private Map<String, Object> incidentReport(final Path projectPath,
-                                               final Map<String, Object> payload,
-                                               final ToolContext context) {
+    private ToolResponse incidentReport(final Path projectPath,
+                                       final Map<String, Object> payload,
+                                       final ToolContext context) {
         String query = String.valueOf(payload.getOrDefault("query", "")).trim();
         if (query.isBlank()) {
-            return Map.of("error", "query must be provided");
+            return ToolResponse.failure("MISSING_QUERY", "query must be provided");
         }
         int max = Integer.parseInt(context.envOrDefault("CODE_CONTEXT_MAX_RESULTS", "20"));
-        return analysisService.report(projectPath, dbPath(payload, context), query, max,
-                new CodeContextRetrievalFacade(searchService, graphDbService), recommendationService);
+        return ToolResponse.ok(diagnosticService.buildReport(projectPath, dbPath(payload, context), query, max,
+                new CodeContextRetrievalFacade(searchService, graphDbService), recommendationService));
     }
 
     private Map<String, Object> p1Context(final Path projectPath,
@@ -240,39 +245,33 @@ public final class JavaCodeContextTool implements Tool {
         return Path.of(dbPath);
     }
 
-    private Map<String, Object> changeImpact(final Map<String, Object> payload,
-                                             final ToolContext context) {
+    private ToolResponse changeImpact(final Map<String, Object> payload,
+                                     final ToolContext context) {
         String target = String.valueOf(payload.getOrDefault("className", "")).trim();
         if (target.isBlank()) {
-            return Map.of("error", "className is required");
+            return ToolResponse.failure("MISSING_CLASS", "className is required");
         }
         int depth = Integer.parseInt(String.valueOf(payload.getOrDefault("maxDepth", "3")));
         Path dbPath = dbPath(payload, context);
-        return changeImpactAnalyzer.analyze(dbPath, target, depth).toMap();
+        return ToolResponse.ok(changeImpactAnalyzer.analyze(dbPath, target, depth).toMap());
     }
 
-    private Map<String, Object> complexityReport(final Map<String, Object> payload,
-                                                 final ToolContext context) {
-        int topN = Integer.parseInt(String.valueOf(payload.getOrDefault("topN", "20")));
-        return complexityAnalyzer.heatmap(dbPath(payload, context), topN);
-    }
-
-    private Map<String, Object> callChain(final Map<String, Object> payload,
-                                          final ToolContext context) {
+    private ToolResponse callChain(final Map<String, Object> payload,
+                                  final ToolContext context) {
         String startId = String.valueOf(payload.getOrDefault("startMethodId", ""));
         if (startId.isBlank()) {
-            return Map.of("error", "startMethodId is required");
+            return ToolResponse.failure("MISSING_START_ID", "startMethodId is required");
         }
         int depth = Integer.parseInt(String.valueOf(payload.getOrDefault("maxDepth", "3")));
         String dir = String.valueOf(payload.getOrDefault("direction", "DOWN"));
         Path dbPath = dbPath(payload, context);
         List<Map<String, Object>> analysis = callChainService.analyze(dbPath, startId, depth, dir);
-        return Map.of(
+        return ToolResponse.ok(Map.of(
                 "startMethodId", startId,
                 "direction", dir,
                 "maxDepth", depth,
                 "chainSize", analysis.size(),
                 "analysis", analysis
-        );
+        ));
     }
 }
