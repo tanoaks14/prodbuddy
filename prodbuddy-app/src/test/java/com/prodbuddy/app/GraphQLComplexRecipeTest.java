@@ -22,7 +22,10 @@ public class GraphQLComplexRecipeTest {
 
     @Test
     public void testGraphQLComplexQuery() throws Exception {
-        Path projectPath = Paths.get("d:/apps/prodbuddy").toAbsolutePath();
+        Path projectPath = Paths.get(".").toAbsolutePath().normalize();
+        if (!Files.exists(projectPath.resolve("recipes"))) {
+            projectPath = projectPath.getParent();
+        }
         Path recipeDir = projectPath.resolve("recipes");
         String recipeName = "graphql-complex-test";
 

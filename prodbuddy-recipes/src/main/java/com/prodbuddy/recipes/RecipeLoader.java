@@ -165,15 +165,24 @@ public final class RecipeLoader {
             handleNestedKey(stripped, subSep, params, key, indent);
             return;
         }
-        if (existing instanceof String s) params.put(key, s + stripped + "\n");
+        // Preserve indentation for implicit blocks (remove only first 2 spaces if present)
+        String val = line.substring(Math.min(indent, 2));
+        if (existing instanceof String s) params.put(key, s + val + "\n");
     }
     private void handleBlockLine(Object existing, String line, Map<String, Object> params, String key, Path recipeFile) {
         if (line.trim().isEmpty()) {
             if (existing instanceof String s) params.put(key, s + "\n");
             return;
         }
-        String val = line.substring(Math.min(line.length(), 2));
-        if (val.startsWith("@file:")) val = readFileContent(recipeFile, val.substring(6));
+        // Detect and remove indentation (assumed at least 2)
+        int i = 0;
+        while (i < line.length() && (line.charAt(i) == ' ' || line.charAt(i) == '\t')) i++;
+        // If we have at least 2 spaces, remove them. Otherwise remove all leading spaces.
+        String val = line.substring(Math.min(i, 2));
+        String trimmedVal = val.trim();
+        if (trimmedVal.startsWith("@file:")) {
+            val = readFileContent(recipeFile, trimmedVal.substring(6));
+        }
         if (existing instanceof String s) params.put(key, s + val + "\n");
     }
     private void handleNestedKey(final String stripped, final int subSep,

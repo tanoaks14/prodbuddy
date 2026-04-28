@@ -193,4 +193,92 @@ public class VariableRobustnessTest {
         // Non-existent step
         assertEquals("${Ghost.data}", resolver.resolve("${Ghost.data}", ctx, results));
     }
+
+    @Test
+    public void testFileContentStrippingIssue() throws Exception {
+        Path gqlFile = tempDir.resolve("query.graphql");
+        // Leading newline and spaces are common in GQL files
+        String gqlContent = "\n  query Test {\n    user { id }\n  }\n";
+        Files.writeString(gqlFile, gqlContent);
+
+        String recipeContent = "name: stripping-test\n" +
+                "## Step 1\n" +
+                "tool: graphql\n" +
+                "query: @file:query.graphql\n";
+        Files.writeString(tempDir.resolve("stripping-test.md"), recipeContent);
+
+        RecipeRegistry registry = RecipeRegistry.loadFrom(tempDir);
+        RecipeDefinition recipe = registry.findByName("stripping-test");
+        
+        RecipeStep step = recipe.steps().get(0);
+        String query = (String) step.rawParams().get("query");
+        
+        // readFileContent does NOT trim content in the current implementation
+        assertEquals(gqlContent, query);
+    }
+
+    @Test
+    public void testBlockFileStrippingIssue() throws Exception {
+        Path gqlFile = tempDir.resolve("query2.graphql");
+        String gqlContent = "query {\n  user {\n    id\n  }\n}";
+        Files.writeString(gqlFile, gqlContent);
+
+        String recipeContent = "name: block-test\n" +
+                "## Step 1\n" +
+                "tool: graphql\n" +
+                "query: |\n" +
+                "  @file:query2.graphql\n";
+        Files.writeString(tempDir.resolve("block-test.md"), recipeContent);
+
+        RecipeRegistry registry = RecipeRegistry.loadFrom(tempDir);
+        RecipeDefinition recipe = registry.findByName("block-test");
+        
+        RecipeStep step = recipe.steps().get(0);
+        String query = (String) step.rawParams().get("query");
+        
+        assertEquals(gqlContent + "\n", query);
+    }
+
+    @Test
+    public void testImplicitBlockStrippingIssue() throws Exception {
+        String recipeContent = "name: implicit-test\n" +
+                "## Step 1\n" +
+                "tool: graphql\n" +
+                "query:\n" +
+                "  query Test {\n" +
+                "    user { id }\n" +
+                "  }\n";
+        Files.writeString(tempDir.resolve("implicit-test.md"), recipeContent);
+
+        RecipeRegistry registry = RecipeRegistry.loadFrom(tempDir);
+        RecipeDefinition recipe = registry.findByName("implicit-test");
+        
+        RecipeStep step = recipe.steps().get(0);
+        String query = (String) step.rawParams().get("query");
+        
+        // Expected: preserved indentation relative to the block (2 spaces removed from each line)
+        assertTrue(query.contains("  user"), "Indentation should be preserved (2 spaces relative), but got: " + query);
+    }
+
+    @Test
+    public void testOverIndentedFileIssue() throws Exception {
+        Path gqlFile = tempDir.resolve("query3.graphql");
+        String gqlContent = "query { user { id } }";
+        Files.writeString(gqlFile, gqlContent);
+
+        String recipeContent = "name: over-indented-test\n" +
+                "## Step 1\n" +
+                "tool: graphql\n" +
+                "query: |\n" +
+                "    @file:query3.graphql\n"; // 4 spaces
+        Files.writeString(tempDir.resolve("over-indented-test.md"), recipeContent);
+
+        RecipeRegistry registry = RecipeRegistry.loadFrom(tempDir);
+        RecipeDefinition recipe = registry.findByName("over-indented-test");
+        
+        RecipeStep step = recipe.steps().get(0);
+        String query = (String) step.rawParams().get("query");
+        
+        assertTrue(query.contains("query { user"), "File content should be loaded, but got: " + query);
+    }
 }

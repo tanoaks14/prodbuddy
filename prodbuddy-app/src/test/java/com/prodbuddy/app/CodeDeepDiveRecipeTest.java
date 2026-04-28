@@ -22,7 +22,10 @@ public class CodeDeepDiveRecipeTest {
 
     @Test
     public void runAsRecipe() throws Exception {
-        Path projectPath = Paths.get("d:/apps/prodbuddy").toAbsolutePath();
+        Path projectPath = Paths.get(".").toAbsolutePath().normalize();
+        if (!Files.exists(projectPath.resolve("recipes"))) {
+            projectPath = projectPath.getParent();
+        }
         Path dbPath = projectPath.resolve("target/codegraph_recipe_run");
         Path recipeDir = projectPath.resolve("recipes");
         String recipeName = "code-deep-dive";
