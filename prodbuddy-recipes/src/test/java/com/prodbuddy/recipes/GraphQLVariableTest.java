@@ -145,4 +145,32 @@ public class GraphQLVariableTest {
         assertNotNull(params.get("bottomVar"), "bottomVar should be present");
         assertEquals("bottomValue", params.get("bottomVar"));
     }
+
+    @Test
+    public void testGraphQLVariablesAsList() throws Exception {
+        String recipeContent = "name: gql-list-test\n" +
+                "## Step 1\n" +
+                "tool: graphql\n" +
+                "operation: query\n" +
+                "variables:\n" +
+                "  - key: continent\n" +
+                "    value: EU\n";
+        Files.writeString(tempDir.resolve("gql-list-test.md"), recipeContent);
+
+        java.util.concurrent.atomic.AtomicReference<Object> capturedVars = new java.util.concurrent.atomic.AtomicReference<>();
+        RecipeToolExecutor executor = (req, ctx) -> {
+            capturedVars.set(req.payload().get("variables"));
+            return ToolResponse.ok(Map.of());
+        };
+
+        RecipeRegistry registry = RecipeRegistry.loadFrom(tempDir);
+        RecipeDefinition recipe = registry.findByName("gql-list-test");
+        ToolContext context = new ToolContext(UUID.randomUUID().toString(), Map.of(), new ToolRegistry(Collections.emptyList()));
+        
+        RecipeRunner runner = new RecipeRunner();
+        runner.run(recipe, recipeContent, context, executor);
+
+        Object vars = capturedVars.get();
+        assertTrue(vars instanceof java.util.List, "Variables should be a List if defined as one");
+    }
 }

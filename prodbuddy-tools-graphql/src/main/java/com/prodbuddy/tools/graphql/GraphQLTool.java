@@ -9,6 +9,8 @@ import com.prodbuddy.core.tool.ToolRequest;
 import com.prodbuddy.core.tool.ToolResponse;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -225,11 +227,24 @@ public final class GraphQLTool implements Tool {
 
     private Map<String, Object> resolveVariables(final Object raw)
             throws Exception {
-        if (raw instanceof Map) return (Map<String, Object>) raw;
-        if (raw instanceof String s && !s.isBlank()) {
-            return mapper.readValue(s, Map.class);
-        }
-        return null;
+        return switch (raw) {
+            case null -> Collections.emptyMap();
+            case Map m -> (Map<String, Object>) m;
+            case String s when !s.isBlank() -> {
+                String trimmed = s.trim();
+                yield trimmed.startsWith("{") ? mapper.readValue(trimmed, Map.class) : Collections.emptyMap();
+            }
+            case List<?> list -> {
+                Map<String, Object> map = new LinkedHashMap<>();
+                for (Object item : list) {
+                    if (item instanceof Map<?, ?> m) {
+                        m.forEach((k, v) -> map.put(String.valueOf(k), v));
+                    }
+                }
+                yield map;
+            }
+            default -> Collections.emptyMap();
+        };
     }
 
     private ToolResponse processResponse(final ToolRequest req,
