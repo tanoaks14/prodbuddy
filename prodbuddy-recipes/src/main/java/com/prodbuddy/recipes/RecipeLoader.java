@@ -64,12 +64,12 @@ public final class RecipeLoader {
         java.util.Set<String> blockKeys = new java.util.HashSet<>();
         String currentKey = null;
         for (String line : paramLines) currentKey = processStepLine(line, params, currentKey, blockKeys, recipeFile);
-        String tool = nvl((String) params.remove("tool")).trim();
-        String op = nvl((String) params.remove("operation")).trim();
-        String cond = nvl((String) params.remove("condition")).trim();
-        String foreach = nvl((String) params.remove("foreach")).trim();
-        String as = nvl((String) params.remove("as")).trim();
-        boolean stopOnFailure = Boolean.parseBoolean(nvl((String) params.remove("stopOnFailure")));
+        String tool = nvl(params.remove("tool")).trim();
+        String op = nvl(params.remove("operation")).trim();
+        String cond = nvl(params.remove("condition")).trim();
+        String foreach = nvl(params.remove("foreach")).trim();
+        String as = nvl(params.remove("as")).trim();
+        boolean stopOnFailure = Boolean.parseBoolean(nvl(params.remove("stopOnFailure")));
         List<RecipeStep> nestedSteps = params.containsKey("steps") ? parseNestedSteps(params.remove("steps")) : List.of();
         return new RecipeStep(name, tool, op, cond, foreach, as, stopOnFailure, nestedSteps, params);
     }
@@ -97,7 +97,7 @@ public final class RecipeLoader {
         boolean isIndented = line.startsWith(" ") || line.startsWith("\t");
         int sep = line.indexOf(':');
         if (sep >= 0 && !isIndented) {
-            String key = line.substring(0, sep).trim(), val = stripQuotes(line.substring(sep + 1).trim());
+            String key = line.substring(0, sep).trim(), val = line.substring(sep + 1).trim();
             return handleNewKey(key, val, params, blockKeys, recipeFile);
         } else if (currentKey != null) {
             handleIndentedLine(params.get(currentKey), line, params, currentKey, blockKeys.contains(currentKey), recipeFile);
@@ -108,8 +108,8 @@ public final class RecipeLoader {
         if (key != null && blocks.contains(key)) handleIndentedLine(params.get(key), "", params, key, true, file);
         return key;
     }
-    private String handleNewKey(String key, String val, Map<String, Object> params, java.util.Set<String> blocks, Path file) {
-        String v = val.startsWith("@file:") ? readFileContent(file, val.substring(6)) : val;
+    private String handleNewKey(final String key, final String val, final Map<String, Object> params, final java.util.Set<String> blocks, final Path file) {
+        Object v = val.startsWith("@file:") ? readFileContent(file, val.substring(6)) : parseValue(val);
         boolean isBlock = "|".equals(v) || ">".equals(v);
         params.put(key, isBlock ? "" : v);
         if (isBlock) blocks.add(key);
@@ -129,6 +129,24 @@ public final class RecipeLoader {
             return val.substring(1, val.length() - 1);
         }
         return val;
+    }
+    private Object parseValue(final String val) {
+        String stripped = stripQuotes(val);
+        if (stripped.length() != val.length()) {
+            return stripped; // Quoted strings stay as strings
+        }
+        if ("true".equalsIgnoreCase(stripped)) {
+            return Boolean.TRUE;
+        }
+        if ("false".equalsIgnoreCase(stripped)) {
+            return Boolean.FALSE;
+        }
+        try {
+            if (stripped.matches("-?\\d+")) {
+                return Integer.parseInt(stripped);
+            }
+        } catch (NumberFormatException ignored) { }
+        return stripped;
     }
     private final Map<Integer, String> lastKeys = new java.util.HashMap<>();
     @SuppressWarnings("unchecked")
@@ -158,8 +176,12 @@ public final class RecipeLoader {
         if (val.startsWith("@file:")) val = readFileContent(recipeFile, val.substring(6));
         if (existing instanceof String s) params.put(key, s + val + "\n");
     }
-    private void handleNestedKey(String stripped, int subSep, Map<String, Object> params, String key, int indent) {
-        String subKey = stripped.substring(0, subSep).trim(), subVal = stripQuotes(stripped.substring(subSep + 1).trim());
+    private void handleNestedKey(final String stripped, final int subSep,
+                                final Map<String, Object> params,
+                                final String key, final int indent) {
+        String subKey = stripped.substring(0, subSep).trim();
+        String subValStr = stripped.substring(subSep + 1).trim();
+        Object subVal = parseValue(subValStr);
         Map<String, Object> parent = getOrCreateParent(params, key, indent);
         parent.put(subKey, subVal);
         lastKeys.put(indent, subKey);
@@ -176,9 +198,9 @@ public final class RecipeLoader {
             int sep = content.indexOf(':');
             Map<String, Object> lastMap = (newItem || list.isEmpty()) ? new LinkedHashMap<>() : (Map<String, Object>) list.get(list.size() - 1);
             if (newItem || list.isEmpty()) list.add(lastMap);
-            lastMap.put(content.substring(0, sep).trim(), stripQuotes(content.substring(sep + 1).trim()));
+            lastMap.put(content.substring(0, sep).trim(), parseValue(content.substring(sep + 1).trim()));
         } else {
-            list.add(stripQuotes(content));
+            list.add(parseValue(content));
         }
     }
     @SuppressWarnings("unchecked")
@@ -232,5 +254,7 @@ public final class RecipeLoader {
         int dot = n.lastIndexOf('.');
         return dot > 0 ? n.substring(0, dot) : n;
     }
-    private String nvl(String v) { return v != null ? v : ""; }
+    private String nvl(Object v) {
+        return v != null ? String.valueOf(v) : "";
+    }
 }

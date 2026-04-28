@@ -42,7 +42,7 @@ public class GraphQLComplexRecipeTest {
         // but since we want to know if it works, let's just use the real one or a simple one.
         // For this test, we just want to see if Step 1 succeeds.
         
-        String fullContent = Files.readString(recipeDir.resolve(recipeName + ".md"));
+        String fullContent = Files.readString(recipeDir.resolve("tests/integration/" + recipeName + ".md"));
         RecipeRunner runner = new RecipeRunner();
         RecipeRunResult result = runner.run(recipe, fullContent, context, (req, ctx) -> {
             return registry.find(req.intent())

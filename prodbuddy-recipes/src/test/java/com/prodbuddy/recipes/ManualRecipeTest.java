@@ -14,21 +14,20 @@ class ManualRecipeTest {
     @Test
     void testSplunkBrowserMimicResolution() throws Exception {
         RecipeLoader loader = new RecipeLoader();
-        RecipeDefinition recipe = loader.load(Path.of("..", "recipes", "splunk-browser-mimic.md"));
-        
+        RecipeDefinition recipe = loader
+                .load(Path.of("..", "recipes", "tests", "splunk", "splunk-browser-mimic.md"));
+
         ToolContext context = new ToolContext("test-req", Map.of(
                 "SPLUNK_BASE_URL", "https://splunk.test",
                 "SPLUNK_USERNAME", "admin",
-                "SPLUNK_FORM_KEY", "form-123"
-        ), null);
+                "SPLUNK_FORM_KEY", "form-123"), null);
 
         RecipeToolExecutor mockExecutor = (request, ctx) -> {
             String op = request.operation();
             if ("login".equals(op)) {
                 return ToolResponse.ok(Map.of(
                         "sessionKey", "key-abc",
-                        "cookie", "splunkd_8089=key-abc"
-                ));
+                        "cookie", "splunkd_8089=key-abc"));
             }
             if ("search".equals(op)) {
                 // Check if variables resolved in path and headers

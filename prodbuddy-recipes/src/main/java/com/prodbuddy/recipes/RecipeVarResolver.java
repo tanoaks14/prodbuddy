@@ -91,7 +91,18 @@ public final class RecipeVarResolver {
         return val;
     }
 
-    private Object resolveKey(String key, ToolContext ctx, Map<String, ToolResponse> stepResults, Map<String, Object> localVars) {
+    /**
+     * Resolves a single key from context, results or local variables.
+     * @param key variable key
+     * @param ctx tool context
+     * @param stepResults prior results
+     * @param localVars loop variables
+     * @return resolved object
+     */
+    private Object resolveKey(final String key, final ToolContext ctx,
+                              final Map<String, ToolResponse> stepResults,
+                              final Map<String, Object> localVars) {
+        // System.out.println("DEBUG: resolveKey key=" + key);
         // 1. Check local scope first (loop variables)
         if (localVars != null && localVars.containsKey(key)) {
             return localVars.get(key);
@@ -99,21 +110,40 @@ public final class RecipeVarResolver {
 
         int dot = key.indexOf('.');
         if (dot < 0) {
-            String val = ctx.envOrDefault(key, null);
-            if (val != null) {
-                return val;
-            }
-            // Smart Defaults for critical variables to prevent tool crashes
-            return switch (key) {
-                case "PRODBUDDY_PROJECT_PATH" -> ".";
-                case "DIAGNOSTIC_WINDOW" -> "60";
-                case "NEWRELIC_ACCOUNT_ID" -> "0";
-                default -> "${" + key + "}";
-            };
+            return resolveSimpleKey(key, ctx);
         }
-        String stepName = key.substring(0, dot);
+
+        String prefix = key.substring(0, dot);
         String path = key.substring(dot + 1);
-        return resolveStepPath(stepName, path, stepResults);
+
+        // Check if prefix is a local variable (e.g. ${item.id})
+        if (localVars != null && localVars.containsKey(prefix)) {
+            Object localObj = localVars.get(prefix);
+            Object value = walkPath(localObj, path);
+            return value != null ? value : "${" + key + "}";
+        }
+
+        return resolveStepPath(prefix, path, stepResults);
+    }
+
+    /**
+     * Resolves simple keys (no dots) from environment or defaults.
+     * @param key simple key
+     * @param ctx tool context
+     * @return resolved object
+     */
+    private Object resolveSimpleKey(final String key, final ToolContext ctx) {
+        String val = ctx.envOrDefault(key, null);
+        if (val != null) {
+            return val;
+        }
+        // Smart Defaults for critical variables to prevent tool crashes
+        return switch (key) {
+            case "PRODBUDDY_PROJECT_PATH" -> ".";
+            case "DIAGNOSTIC_WINDOW" -> "60";
+            case "NEWRELIC_ACCOUNT_ID" -> "0";
+            default -> "${" + key + "}";
+        };
     }
 
     private Object resolveStepPath(final String stepName,
@@ -139,6 +169,7 @@ public final class RecipeVarResolver {
         }
 
         Map<String, Object> data = unwrapIfOrchestrator(response.data(), path);
+        // System.out.println("DEBUG: step=" + stepName + " path=" + path + " data=" + data);
         Object value = walkPath(data, path);
         return value != null ? value : "${" + stepName + "." + path + "}";
     }

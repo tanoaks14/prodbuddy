@@ -7,7 +7,7 @@ description: Tests loading GraphQL query from an external file.
 tool: graphql
 operation: format
 validate: true
-query: @file:test_query.graphql
+query: @file:../../primitives/graphql/test_query.graphql
 
 
 

@@ -6,7 +6,7 @@ tool: graphql
 operation: query
 url: "https://countries.trevorblades.com/"
 noTruncate: true
-query: @file:complex_query.graphql
+query: @file:../../primitives/graphql/complex_query.graphql
 variables:
   continent1: "EU"
   continent2: "AS"

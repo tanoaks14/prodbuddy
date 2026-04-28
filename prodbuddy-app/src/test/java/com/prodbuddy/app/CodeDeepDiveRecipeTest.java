@@ -47,7 +47,7 @@ public class CodeDeepDiveRecipeTest {
         ConversationContext convCtx = new ConversationContext(context.requestId());
         ContextCollector collector = new ContextCollector(orchestrator::run, convCtx);
 
-        String fullContent = Files.readString(recipeDir.resolve(recipeName + ".md"));
+        String fullContent = Files.readString(recipeDir.resolve("primitives/code/deep-dive.md"));
         RecipeRunner runner = new RecipeRunner();
         RecipeRunResult result = runner.run(recipe, fullContent, context, collector);
 
