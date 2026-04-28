@@ -1,6 +1,10 @@
 # GraphQL Complex Query Test
 This recipe verifies the GraphQL tool handles complex queries (11 variables, 5 levels deep) loaded from an external .graphql file.
 
+## start-trace
+tool: observation
+operation: clear
+
 ## Step 1: Run Complex Query
 tool: graphql
 operation: query
@@ -27,3 +31,22 @@ prompt: |
   Verify the GraphQL response contains data for continents EU and AS,
   countries FR, DE, JP, and languages fr, de, ja.
   Result: ${Step 1.result.data}
+
+## get-trace
+tool: observation
+operation: mermaid
+
+## render-trace
+tool: observation
+operation: render
+format: png
+
+## show-trace
+tool: agent
+operation: think
+prompt: |
+  Execution complete. Here is the mermaid sequence trace:
+
+  ```mermaid
+  ${get-trace.mermaid}
+  ```

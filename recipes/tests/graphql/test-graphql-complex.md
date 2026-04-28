@@ -4,6 +4,10 @@ description: Test complex GraphQL input objects and lists
 tags: [test]
 ---
 
+## start-trace
+tool: observation
+operation: clear
+
 ## define-filters
 tool: agent
 operation: think
@@ -49,3 +53,22 @@ prompt: |
   The result contains ${fetch-filtered-countries.data.data.countries[0].name} and others.
   Does this look correct?
 data: "${fetch-filtered-countries.data}"
+
+## get-trace
+tool: observation
+operation: mermaid
+
+## render-trace
+tool: observation
+operation: render
+format: png
+
+## show-trace
+tool: agent
+operation: think
+prompt: |
+  Execution complete. Here is the mermaid sequence trace:
+
+  ```mermaid
+  ${get-trace.mermaid}
+  ```

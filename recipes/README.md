@@ -48,6 +48,7 @@ Domain-specific chains that compose primitives to solve real problems.
 | `log-pattern-synthesis.md` | Log pattern extraction and analysis | splunk, agent |
 | `autonomous-audit.md` | Self-driven code audit | agent, codecontext |
 | `nr-historical-comparison.md` | NR historical data comparison | newrelic, agent |
+| `wow-dashboard-comparison.md` | Automated WoW performance audit | newrelic, agent |
 
 ## Tests
 
