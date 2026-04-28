@@ -10,6 +10,7 @@ public final class RecipeLoader {
     private static final String FRONTMATTER_DELIMITER = "---";
     private static final String STEP_HEADING_PREFIX = "## ";
     private static final String KV_SEPARATOR = ": ";
+    private static final com.fasterxml.jackson.databind.ObjectMapper MAPPER = new com.fasterxml.jackson.databind.ObjectMapper();
     public RecipeDefinition load(Path file) throws IOException {
         List<String> lines = Files.readAllLines(file);
         int bodyStart = findBodyStart(lines);
@@ -135,23 +136,29 @@ public final class RecipeLoader {
         }
         return val;
     }
-    private Object parseValue(final String val) {
-        String stripped = stripQuotes(val);
-        if (stripped.length() != val.length()) {
-            return stripped; // Quoted strings stay as strings
-        }
-        if ("true".equalsIgnoreCase(stripped)) {
-            return Boolean.TRUE;
-        }
-        if ("false".equalsIgnoreCase(stripped)) {
-            return Boolean.FALSE;
-        }
+    private Object parseValue(String val) {
+        if (val == null || val.isEmpty()) return "";
+        String v = val.trim();
+        String unquoted = stripQuotes(v);
+        if (unquoted.length() != v.length()) return unquoted;
+        if (v.equalsIgnoreCase("true")) return Boolean.TRUE;
+        if (v.equalsIgnoreCase("false")) return Boolean.FALSE;
+        return parseNumericOrComplex(v);
+    }
+    private Object parseNumericOrComplex(String v) {
         try {
-            if (stripped.matches("-?\\d+")) {
-                return Integer.parseInt(stripped);
-            }
-        } catch (NumberFormatException ignored) { }
-        return stripped;
+            return Integer.parseInt(v);
+        } catch (NumberFormatException e) {
+            if (v.startsWith("[") || v.startsWith("{")) return parseJson(v);
+            return v;
+        }
+    }
+    private Object parseJson(String v) {
+        try {
+            return MAPPER.readValue(v, Object.class);
+        } catch (Exception ignored) {
+            return v;
+        }
     }
     private final Map<Integer, String> lastKeys = new java.util.HashMap<>();
     @SuppressWarnings("unchecked")
@@ -164,7 +171,7 @@ public final class RecipeLoader {
         }
         String stripped = line.stripLeading();
         int indent = line.indexOf(stripped), subSep = stripped.indexOf(':');
-        if (stripped.startsWith("- ") || "steps".equals(key)) {
+        if (stripped.startsWith("- ") || "steps".equals(key) || existing instanceof List) {
             handleGeneralList(params, key, stripped);
             return;
         }

@@ -281,4 +281,59 @@ public class VariableRobustnessTest {
         
         assertTrue(query.contains("query { user"), "File content should be loaded, but got: " + query);
     }
+
+    @Test
+    void testListOfMapsVariable() throws Exception {
+        String recipeYaml = """
+                name: list-map-test
+                
+                ## Step 1
+                tool: test
+                operation: test
+                config:
+                  - feature: 1
+                    version: "v3"
+                  - feature: 2
+                    version: "v4"
+                """;
+        Path recipeFile = tempDir.resolve("list-map-test.md");
+        Files.writeString(recipeFile, recipeYaml);
+        RecipeDefinition recipe = new RecipeLoader().load(recipeFile);
+        RecipeStep step = recipe.steps().get(0);
+        Object config = step.rawParams().get("config");
+        
+        assertTrue(config instanceof List, "Config should be a list, but was: " + (config == null ? "null" : config.getClass().getName()));
+        List<?> list = (List<?>) config;
+        assertEquals(2, list.size());
+        
+        Map<?, ?> item1 = (Map<?, ?>) list.get(0);
+        assertEquals(1, item1.get("feature"));
+        assertEquals("v3", item1.get("version")); 
+        
+        Map<?, ?> item2 = (Map<?, ?>) list.get(1);
+        assertEquals(2, item2.get("feature"));
+        assertEquals("v4", item2.get("version"));
+    }
+
+    @Test
+    void testInlineJsonVariable() throws Exception {
+        String recipeYaml = """
+                name: json-var-test
+                
+                ## Step 1
+                tool: test
+                config: [{"f": 1, "v": "a"}, {"f": 2, "v": "b"}]
+                """;
+        Path recipeFile = tempDir.resolve("json-var-test.md");
+        Files.writeString(recipeFile, recipeYaml);
+
+        RecipeDefinition recipe = new RecipeLoader().load(recipeFile);
+        RecipeStep step = recipe.steps().get(0);
+        Object config = step.rawParams().get("config");
+        
+        assertTrue(config instanceof List, "Config should be a parsed List");
+        List<?> list = (List<?>) config;
+        assertEquals(2, list.size());
+        assertEquals("a", ((Map<?, ?>) list.get(0)).get("v"));
+    }
 }
