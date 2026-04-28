@@ -8,6 +8,7 @@ import com.prodbuddy.recipes.RecipeRunResult;
 import com.prodbuddy.recipes.RecipeRunner;
 import com.prodbuddy.recipes.RecipeStepResult;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -21,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class GraphQLComplexRecipeTest {
 
     @Test
+    @EnabledIfSystemProperty(named = "prodbuddy.test.online", matches = "true")
     public void testGraphQLComplexQuery() throws Exception {
         Path projectPath = Paths.get(".").toAbsolutePath().normalize();
         if (!Files.exists(projectPath.resolve("recipes"))) {
@@ -54,10 +56,14 @@ public class GraphQLComplexRecipeTest {
         });
 
         System.out.println("Recipe execution complete.");
-        for (RecipeStepResult stepRes : result.stepResults()) {
-            System.out.println("Step: " + stepRes.stepName() + " Success: " + stepRes.response().success());
+        for (int i = 0; i < result.stepResults().size(); i++) {
+            RecipeStepResult stepRes = result.stepResults().get(i);
+            System.out.println("Step " + (i + 1) + " [" + stepRes.stepName() + "] Success: " + stepRes.response().success());
             if (!stepRes.response().success()) {
-                System.out.println("Error: " + stepRes.response().errors());
+                stepRes.response().errors().forEach(e -> {
+                    System.out.println("Error Code: " + e.code());
+                    System.out.println("Error Message: " + e.message());
+                });
             }
         }
 

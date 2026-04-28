@@ -62,8 +62,11 @@ public final class RecipeLoader {
         lastKeys.clear();
         Map<String, Object> params = new LinkedHashMap<>();
         java.util.Set<String> blockKeys = new java.util.HashSet<>();
+        java.util.Map<String, Integer> blockIndents = new java.util.HashMap<>();
         String currentKey = null;
-        for (String line : paramLines) currentKey = processStepLine(line, params, currentKey, blockKeys, recipeFile);
+        for (String line : paramLines) {
+            currentKey = processStepLine(line, params, currentKey, blockKeys, blockIndents, recipeFile);
+        }
         String tool = nvl(params.remove("tool")).trim();
         String op = nvl(params.remove("operation")).trim();
         String cond = nvl(params.remove("condition")).trim();
@@ -92,20 +95,22 @@ public final class RecipeLoader {
         List<RecipeStep> nested = p.containsKey("steps") ? parseNestedSteps(p.remove("steps")) : List.of();
         return new RecipeStep(name, tool, op, cond, fe, as, stop, nested, p);
     }
-    private String processStepLine(String line, Map<String, Object> params, String currentKey, java.util.Set<String> blockKeys, Path recipeFile) {
-        if (line.trim().isEmpty()) return handleEmptyLine(currentKey, blockKeys, params, recipeFile);
+    private String processStepLine(String line, Map<String, Object> params, String currentKey,
+                                   java.util.Set<String> blockKeys, java.util.Map<String, Integer> blockIndents,
+                                   Path recipeFile) {
+        if (line.trim().isEmpty()) return handleEmptyLine(currentKey, blockKeys, blockIndents, params, recipeFile);
         boolean isIndented = line.startsWith(" ") || line.startsWith("\t");
         int sep = line.indexOf(':');
         if (sep >= 0 && !isIndented) {
             String key = line.substring(0, sep).trim(), val = line.substring(sep + 1).trim();
             return handleNewKey(key, val, params, blockKeys, recipeFile);
         } else if (currentKey != null) {
-            handleIndentedLine(params.get(currentKey), line, params, currentKey, blockKeys.contains(currentKey), recipeFile);
+            handleIndentedLine(params.get(currentKey), line, params, currentKey, blockKeys.contains(currentKey), blockIndents, recipeFile);
         }
         return currentKey;
     }
-    private String handleEmptyLine(String key, java.util.Set<String> blocks, Map<String, Object> params, Path file) {
-        if (key != null && blocks.contains(key)) handleIndentedLine(params.get(key), "", params, key, true, file);
+    private String handleEmptyLine(String key, java.util.Set<String> blocks, java.util.Map<String, Integer> blockIndents, Map<String, Object> params, Path file) {
+        if (key != null && blocks.contains(key)) handleIndentedLine(params.get(key), "", params, key, true, blockIndents, file);
         return key;
     }
     private String handleNewKey(final String key, final String val, final Map<String, Object> params, final java.util.Set<String> blocks, final Path file) {
@@ -150,7 +155,9 @@ public final class RecipeLoader {
     }
     private final Map<Integer, String> lastKeys = new java.util.HashMap<>();
     @SuppressWarnings("unchecked")
-    private void handleIndentedLine(Object existing, String line, Map<String, Object> params, String key, boolean isBlock, Path recipeFile) {
+    private void handleIndentedLine(Object existing, String line, Map<String, Object> params,
+                                    String key, boolean isBlock, java.util.Map<String, Integer> blockIndents,
+                                    Path recipeFile) {
         if (isBlock) {
             handleBlockLine(existing, line, params, key, recipeFile);
             return;
@@ -165,8 +172,12 @@ public final class RecipeLoader {
             handleNestedKey(stripped, subSep, params, key, indent);
             return;
         }
-        // Preserve indentation for implicit blocks (remove only first 2 spaces if present)
-        String val = line.substring(Math.min(indent, 2));
+        // Detect block base indentation on first line
+        if (!blockIndents.containsKey(key)) {
+            blockIndents.put(key, indent);
+        }
+        int baseIndent = blockIndents.get(key);
+        String val = line.substring(Math.min(indent, baseIndent));
         if (existing instanceof String s) params.put(key, s + val + "\n");
     }
     private void handleBlockLine(Object existing, String line, Map<String, Object> params, String key, Path recipeFile) {

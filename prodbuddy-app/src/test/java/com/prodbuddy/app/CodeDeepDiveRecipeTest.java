@@ -10,6 +10,7 @@ import com.prodbuddy.orchestrator.LoopConfig;
 import com.prodbuddy.orchestrator.RuleBasedToolRouter;
 import com.prodbuddy.recipes.*;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -21,6 +22,7 @@ import java.util.UUID;
 public class CodeDeepDiveRecipeTest {
 
     @Test
+    @EnabledIfSystemProperty(named = "prodbuddy.test.online", matches = "true")
     public void runAsRecipe() throws Exception {
         Path projectPath = Paths.get(".").toAbsolutePath().normalize();
         if (!Files.exists(projectPath.resolve("recipes"))) {
